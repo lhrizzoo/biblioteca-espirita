@@ -35,24 +35,25 @@ async function iniciarBanco() {
 function App() {
   const [mostrarCadastro, setMostrarCadastro] = useState(false);
   const [livros, setLivros] = useState<Livro[]>([]);
+  const [pesquisa, setPesquisa] = useState("");
 
   const [codigo, setCodigo] = useState("");
   const [titulo, setTitulo] = useState("");
   const [autor, setAutor] = useState("");
 
-  const [pesquisa, setPesquisa] = useState("");
+  const [codigoOriginal, setCodigoOriginal] = useState<string | null>(null);
+
+  const editando = codigoOriginal !== null;
 
   async function carregarLivros() {
     try {
       const db = await Database.load("sqlite:biblioteca.db");
 
-      const registros = await db.select<LivroBanco[]>(
-        `
-          SELECT codigo, titulo, autor, disponivel
-          FROM livros
-          ORDER BY titulo
-        `
-      );
+      const registros = await db.select<LivroBanco[]>(`
+        SELECT codigo, titulo, autor, disponivel
+        FROM livros
+        ORDER BY titulo
+      `);
 
       const livrosCarregados: Livro[] = registros.map((livro) => ({
         codigo: livro.codigo,
@@ -80,7 +81,32 @@ function App() {
     prepararBanco();
   }, []);
 
-  async function cadastrarLivro() {
+  function limparFormulario() {
+    setCodigo("");
+    setTitulo("");
+    setAutor("");
+    setCodigoOriginal(null);
+  }
+
+  function fecharFormulario() {
+    limparFormulario();
+    setMostrarCadastro(false);
+  }
+
+  function abrirNovoLivro() {
+    limparFormulario();
+    setMostrarCadastro(true);
+  }
+
+  function abrirEdicao(livro: Livro) {
+    setCodigoOriginal(livro.codigo);
+    setCodigo(livro.codigo);
+    setTitulo(livro.titulo);
+    setAutor(livro.autor);
+    setMostrarCadastro(true);
+  }
+
+  async function salvarLivro() {
     if (!codigo.trim() || !titulo.trim() || !autor.trim()) {
       alert("Preencha código, título e autor.");
       return;
@@ -89,25 +115,37 @@ function App() {
     try {
       const db = await Database.load("sqlite:biblioteca.db");
 
-      await db.execute(
-        `
-          INSERT INTO livros (codigo, titulo, autor, disponivel)
-          VALUES ($1, $2, $3, 1)
-        `,
-        [codigo.trim(), titulo.trim(), autor.trim()]
-      );
+      if (editando) {
+        await db.execute(
+          `
+            UPDATE livros
+            SET codigo = $1, titulo = $2, autor = $3
+            WHERE codigo = $4
+          `,
+          [
+            codigo.trim(),
+            titulo.trim(),
+            autor.trim(),
+            codigoOriginal,
+          ]
+        );
+      } else {
+        await db.execute(
+          `
+            INSERT INTO livros (codigo, titulo, autor, disponivel)
+            VALUES ($1, $2, $3, 1)
+          `,
+          [codigo.trim(), titulo.trim(), autor.trim()]
+        );
+      }
 
-      setCodigo("");
-      setTitulo("");
-      setAutor("");
-      setMostrarCadastro(false);
-
+      fecharFormulario();
       await carregarLivros();
     } catch (erro) {
-      console.error("Erro ao cadastrar livro:", erro);
+      console.error("Erro ao salvar livro:", erro);
 
       alert(
-        "Não foi possível cadastrar o livro. Verifique se o código já está sendo utilizado."
+        "Não foi possível salvar o livro. Verifique se o código já está sendo utilizado."
       );
     }
   }
@@ -137,22 +175,16 @@ function App() {
 
       <main className="conteudo">
         <section className="acoes">
-          <button onClick={() => setMostrarCadastro(true)}>
-            + Cadastrar livro
-          </button>
-
+          <button onClick={abrirNovoLivro}>+ Cadastrar livro</button>
           <button>+ Novo empréstimo</button>
         </section>
 
         {mostrarCadastro && (
           <section className="formulario">
             <div className="formulario-topo">
-              <h2>Cadastrar livro</h2>
+              <h2>{editando ? "Editar livro" : "Cadastrar livro"}</h2>
 
-              <button
-                className="fechar"
-                onClick={() => setMostrarCadastro(false)}
-              >
+              <button className="fechar" onClick={fecharFormulario}>
                 ×
               </button>
             </div>
@@ -187,14 +219,13 @@ function App() {
             </div>
 
             <div className="formulario-acoes">
-              <button
-                className="cancelar"
-                onClick={() => setMostrarCadastro(false)}
-              >
+              <button className="cancelar" onClick={fecharFormulario}>
                 Cancelar
               </button>
 
-              <button onClick={cadastrarLivro}>Salvar livro</button>
+              <button onClick={salvarLivro}>
+                {editando ? "Salvar alterações" : "Salvar livro"}
+              </button>
             </div>
           </section>
         )}
@@ -218,13 +249,14 @@ function App() {
                 <th>Livro</th>
                 <th>Autor</th>
                 <th>Situação</th>
+                <th>Ações</th>
               </tr>
             </thead>
 
             <tbody>
               {livrosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={4}>
+                  <td colSpan={5}>
                     {pesquisa.trim()
                       ? "Nenhum livro encontrado."
                       : "Nenhum livro cadastrado."}
@@ -244,6 +276,15 @@ function App() {
                       >
                         {livro.disponivel ? "Disponível" : "Emprestado"}
                       </span>
+                    </td>
+
+                    <td>
+                      <button
+                        className="botao-editar"
+                        onClick={() => abrirEdicao(livro)}
+                      >
+                        Editar
+                      </button>
                     </td>
                   </tr>
                 ))
