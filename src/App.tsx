@@ -35,9 +35,12 @@ async function iniciarBanco() {
 function App() {
   const [mostrarCadastro, setMostrarCadastro] = useState(false);
   const [livros, setLivros] = useState<Livro[]>([]);
+
   const [codigo, setCodigo] = useState("");
   const [titulo, setTitulo] = useState("");
   const [autor, setAutor] = useState("");
+
+  const [pesquisa, setPesquisa] = useState("");
 
   async function carregarLivros() {
     try {
@@ -108,6 +111,20 @@ function App() {
       );
     }
   }
+
+  const termoPesquisa = pesquisa.trim().toLowerCase();
+
+  const livrosFiltrados = livros.filter((livro) => {
+    if (!termoPesquisa) {
+      return true;
+    }
+
+    return (
+      livro.titulo.toLowerCase().includes(termoPesquisa) ||
+      livro.autor.toLowerCase().includes(termoPesquisa) ||
+      livro.codigo.toLowerCase().includes(termoPesquisa)
+    );
+  });
 
   return (
     <div className="app">
@@ -185,7 +202,9 @@ function App() {
         <section className="pesquisa">
           <input
             type="text"
-            placeholder="Pesquisar livro por título ou autor..."
+            value={pesquisa}
+            onChange={(e) => setPesquisa(e.target.value)}
+            placeholder="Pesquisar por código, título ou autor..."
           />
         </section>
 
@@ -203,12 +222,16 @@ function App() {
             </thead>
 
             <tbody>
-              {livros.length === 0 ? (
+              {livrosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={4}>Nenhum livro cadastrado.</td>
+                  <td colSpan={4}>
+                    {pesquisa.trim()
+                      ? "Nenhum livro encontrado."
+                      : "Nenhum livro cadastrado."}
+                  </td>
                 </tr>
               ) : (
-                livros.map((livro) => (
+                livrosFiltrados.map((livro) => (
                   <tr key={livro.codigo}>
                     <td>{livro.codigo}</td>
                     <td>{livro.titulo}</td>
