@@ -240,15 +240,18 @@ function LinhaLivro({
       try {
         const db = await obterBanco();
 
-        const resultado = await db.select<{ nome: string }[]>(`
-          SELECT p.nome
-          FROM emprestimos e
-          INNER JOIN pessoas p ON p.id = e.pessoa_id
-          WHERE e.livro_codigo = '${livro.codigo.replaceAll("'", "''")}'
-            AND e.data_devolucao IS NULL
-          ORDER BY e.id DESC
-          LIMIT 1
-        `);
+        const resultado = await db.select<{ nome: string }[]>(
+  `
+    SELECT p.nome
+    FROM emprestimos e
+    INNER JOIN pessoas p ON p.id = e.pessoa_id
+    WHERE e.livro_codigo = $1
+      AND e.data_devolucao IS NULL
+    ORDER BY e.id DESC
+    LIMIT 1
+  `,
+  [livro.codigo]
+);
 
         setEmprestadoPara(resultado[0]?.nome ?? "Não identificado");
       } catch (erro) {
