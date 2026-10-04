@@ -8,6 +8,14 @@ type Livro = {
   autor: string;
   disponivel: boolean;
 };
+
+type LivroBanco = {
+  codigo: string;
+  titulo: string;
+  autor: string;
+  disponivel: number;
+};
+
 async function iniciarBanco() {
   const db = await Database.load("sqlite:biblioteca.db");
 
@@ -23,12 +31,44 @@ async function iniciarBanco() {
 
   return db;
 }
-function App() {  
+
+function App() {
+  const [mostrarCadastro, setMostrarCadastro] = useState(false);
+  const [livros, setLivros] = useState<Livro[]>([]);
+  const [codigo, setCodigo] = useState("");
+  const [titulo, setTitulo] = useState("");
+  const [autor, setAutor] = useState("");
+
+  async function carregarLivros() {
+    try {
+      const db = await Database.load("sqlite:biblioteca.db");
+
+      const registros = await db.select<LivroBanco[]>(
+        `
+          SELECT codigo, titulo, autor, disponivel
+          FROM livros
+          ORDER BY titulo
+        `
+      );
+
+      const livrosCarregados: Livro[] = registros.map((livro) => ({
+        codigo: livro.codigo,
+        titulo: livro.titulo,
+        autor: livro.autor,
+        disponivel: livro.disponivel === 1,
+      }));
+
+      setLivros(livrosCarregados);
+    } catch (erro) {
+      console.error("Erro ao carregar livros:", erro);
+    }
+  }
+
   useEffect(() => {
     async function prepararBanco() {
       try {
         await iniciarBanco();
-        console.log("Banco de dados iniciado com sucesso.");
+        await carregarLivros();
       } catch (erro) {
         console.error("Erro ao iniciar banco de dados:", erro);
       }
@@ -36,46 +76,37 @@ function App() {
 
     prepararBanco();
   }, []);
-  const [mostrarCadastro, setMostrarCadastro] = useState(false);
 
-  const [livros, setLivros] = useState<Livro[]>([
-    {
-      codigo: "001",
-      titulo: "Nosso Lar",
-      autor: "Chico Xavier",
-      disponivel: true,
-    },
-    {
-      codigo: "002",
-      titulo: "O Livro dos Espíritos",
-      autor: "Allan Kardec",
-      disponivel: false,
-    },
-  ]);
-
-  const [codigo, setCodigo] = useState("");
-  const [titulo, setTitulo] = useState("");
-  const [autor, setAutor] = useState("");
-
-  function cadastrarLivro() {
+  async function cadastrarLivro() {
     if (!codigo.trim() || !titulo.trim() || !autor.trim()) {
       alert("Preencha código, título e autor.");
       return;
     }
 
-    const novoLivro: Livro = {
-      codigo: codigo.trim(),
-      titulo: titulo.trim(),
-      autor: autor.trim(),
-      disponivel: true,
-    };
+    try {
+      const db = await Database.load("sqlite:biblioteca.db");
 
-    setLivros([...livros, novoLivro]);
+      await db.execute(
+        `
+          INSERT INTO livros (codigo, titulo, autor, disponivel)
+          VALUES ($1, $2, $3, 1)
+        `,
+        [codigo.trim(), titulo.trim(), autor.trim()]
+      );
 
-    setCodigo("");
-    setTitulo("");
-    setAutor("");
-    setMostrarCadastro(false);
+      setCodigo("");
+      setTitulo("");
+      setAutor("");
+      setMostrarCadastro(false);
+
+      await carregarLivros();
+    } catch (erro) {
+      console.error("Erro ao cadastrar livro:", erro);
+
+      alert(
+        "Não foi possível cadastrar o livro. Verifique se o código já está sendo utilizado."
+      );
+    }
   }
 
   return (
@@ -172,22 +203,28 @@ function App() {
             </thead>
 
             <tbody>
-              {livros.map((livro) => (
-                <tr key={livro.codigo}>
-                  <td>{livro.codigo}</td>
-                  <td>{livro.titulo}</td>
-                  <td>{livro.autor}</td>
-                  <td>
-                    <span
-                      className={
-                        livro.disponivel ? "disponivel" : "emprestado"
-                      }
-                    >
-                      {livro.disponivel ? "Disponível" : "Emprestado"}
-                    </span>
-                  </td>
+              {livros.length === 0 ? (
+                <tr>
+                  <td colSpan={4}>Nenhum livro cadastrado.</td>
                 </tr>
-              ))}
+              ) : (
+                livros.map((livro) => (
+                  <tr key={livro.codigo}>
+                    <td>{livro.codigo}</td>
+                    <td>{livro.titulo}</td>
+                    <td>{livro.autor}</td>
+                    <td>
+                      <span
+                        className={
+                          livro.disponivel ? "disponivel" : "emprestado"
+                        }
+                      >
+                        {livro.disponivel ? "Disponível" : "Emprestado"}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </section>
