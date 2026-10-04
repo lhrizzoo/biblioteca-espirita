@@ -164,3 +164,77 @@ td {
   background: #eef1ef;
   color: #25302a;
 }
+.formulario {
+  background: white;
+  border: 1px solid #e1e5e2;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.formulario-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.formulario-topo h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.fechar {
+  background: transparent;
+  border: 0;
+  font-size: 25px;
+  cursor: pointer;
+  color: #68716c;
+}
+
+.campos {
+  display: grid;
+  grid-template-columns: 150px 1fr 1fr;
+  gap: 15px;
+}
+
+.campos label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.campos input {
+  padding: 11px 12px;
+  border: 1px solid #d8ddda;
+  border-radius: 7px;
+  outline: none;
+}
+
+.campos input:focus {
+  border-color: #315c45;
+}
+
+.formulario-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.formulario-acoes button {
+  border: 0;
+  border-radius: 7px;
+  padding: 10px 16px;
+  background: #315c45;
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.formulario-acoes .cancelar {
+  background: #ecefed;
+  color: #455049;
+}
