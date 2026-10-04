@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Database from "@tauri-apps/plugin-sql";
 import "./App.css";
 
 type Livro = {
@@ -7,8 +8,34 @@ type Livro = {
   autor: string;
   disponivel: boolean;
 };
+async function iniciarBanco() {
+  const db = await Database.load("sqlite:biblioteca.db");
 
-function App() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS livros (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      codigo TEXT NOT NULL UNIQUE,
+      titulo TEXT NOT NULL,
+      autor TEXT NOT NULL,
+      disponivel INTEGER NOT NULL DEFAULT 1
+    )
+  `);
+
+  return db;
+}
+function App() {  
+  useEffect(() => {
+    async function prepararBanco() {
+      try {
+        await iniciarBanco();
+        console.log("Banco de dados iniciado com sucesso.");
+      } catch (erro) {
+        console.error("Erro ao iniciar banco de dados:", erro);
+      }
+    }
+
+    prepararBanco();
+  }, []);
   const [mostrarCadastro, setMostrarCadastro] = useState(false);
 
   const [livros, setLivros] = useState<Livro[]>([
