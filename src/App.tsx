@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import "./App.css";
 
-type Tela = "livros" | "pessoas";
+type Tela = "livros" | "emprestimos" | "pessoas";
 
 type Livro = {
   codigo: string;
@@ -23,6 +23,17 @@ type Pessoa = {
   nome: string;
   telefone: string;
   observacao: string;
+};
+
+type EmprestimoBanco = {
+  id: number;
+  pessoa_id: number;
+  pessoa_nome: string;
+  livro_codigo: string;
+  livro_titulo: string;
+  data_emprestimo: string;
+  data_prevista: string;
+  data_devolucao: string | null;
 };
 
 async function iniciarBanco() {
@@ -47,7 +58,37 @@ async function iniciarBanco() {
     )
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS emprestimos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pessoa_id INTEGER NOT NULL,
+      livro_codigo TEXT NOT NULL,
+      data_emprestimo TEXT NOT NULL,
+      data_prevista TEXT NOT NULL,
+      data_devolucao TEXT,
+      FOREIGN KEY (pessoa_id) REFERENCES pessoas(id),
+      FOREIGN KEY (livro_codigo) REFERENCES livros(codigo)
+    )
+  `);
+
   return db;
+}
+
+function dataHoje() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function dataDaquiADias(dias: number) {
+  const data = new Date();
+  data.setDate(data.getDate() + dias);
+  return data.toISOString().split("T")[0];
+}
+
+function formatarData(data: string) {
+  if (!data) return "—";
+
+  const [ano, mes, dia] = data.split("-");
+  return `${dia}/${mes}/${ano}`;
 }
 
 function App() {
@@ -68,45 +109,66 @@ function App() {
   const [telefonePessoa, setTelefonePessoa] = useState("");
   const [observacaoPessoa, setObservacaoPessoa] = useState("");
 
+  const [emprestimos, setEmprestimos] = useState<EmprestimoBanco[]>([]);
+  const [mostrarNovoEmprestimo, setMostrarNovoEmprestimo] = useState(false);
+  const [pessoaEmprestimo, setPessoaEmprestimo] = useState("");
+  const [livroEmprestimo, setLivroEmprestimo] = useState("");
+  const [dataEmprestimo, setDataEmprestimo] = useState(dataHoje());
+  const [dataPrevista, setDataPrevista] = useState(dataDaquiADias(14));
+
   const editandoLivro = codigoOriginal !== null;
 
   async function carregarLivros() {
-    try {
-      const db = await Database.load("sqlite:biblioteca.db");
+    const db = await Database.load("sqlite:biblioteca.db");
 
-      const registros = await db.select<LivroBanco[]>(`
-        SELECT codigo, titulo, autor, disponivel
-        FROM livros
-        ORDER BY titulo
-      `);
+    const registros = await db.select<LivroBanco[]>(`
+      SELECT codigo, titulo, autor, disponivel
+      FROM livros
+      ORDER BY titulo
+    `);
 
-      setLivros(
-        registros.map((livro) => ({
-          codigo: livro.codigo,
-          titulo: livro.titulo,
-          autor: livro.autor,
-          disponivel: livro.disponivel === 1,
-        }))
-      );
-    } catch (erro) {
-      console.error("Erro ao carregar livros:", erro);
-    }
+    setLivros(
+      registros.map((livro) => ({
+        codigo: livro.codigo,
+        titulo: livro.titulo,
+        autor: livro.autor,
+        disponivel: livro.disponivel === 1,
+      }))
+    );
   }
 
   async function carregarPessoas() {
-    try {
-      const db = await Database.load("sqlite:biblioteca.db");
+    const db = await Database.load("sqlite:biblioteca.db");
 
-      const registros = await db.select<Pessoa[]>(`
-        SELECT id, nome, telefone, observacao
-        FROM pessoas
-        ORDER BY nome
-      `);
+    const registros = await db.select<Pessoa[]>(`
+      SELECT id, nome, telefone, observacao
+      FROM pessoas
+      ORDER BY nome
+    `);
 
-      setPessoas(registros);
-    } catch (erro) {
-      console.error("Erro ao carregar pessoas:", erro);
-    }
+    setPessoas(registros);
+  }
+
+  async function carregarEmprestimos() {
+    const db = await Database.load("sqlite:biblioteca.db");
+
+    const registros = await db.select<EmprestimoBanco[]>(`
+      SELECT
+        e.id,
+        e.pessoa_id,
+        p.nome AS pessoa_nome,
+        e.livro_codigo,
+        l.titulo AS livro_titulo,
+        e.data_emprestimo,
+        e.data_prevista,
+        e.data_devolucao
+      FROM emprestimos e
+      INNER JOIN pessoas p ON p.id = e.pessoa_id
+      INNER JOIN livros l ON l.codigo = e.livro_codigo
+      ORDER BY e.id DESC
+    `);
+
+    setEmprestimos(registros);
   }
 
   useEffect(() => {
@@ -115,8 +177,9 @@ function App() {
         await iniciarBanco();
         await carregarLivros();
         await carregarPessoas();
+        await carregarEmprestimos();
       } catch (erro) {
-        console.error("Erro ao iniciar banco de dados:", erro);
+        console.error("Erro ao iniciar banco:", erro);
       }
     }
 
@@ -180,21 +243,14 @@ function App() {
       await carregarLivros();
     } catch (erro) {
       console.error("Erro ao salvar livro:", erro);
-
-      alert(
-        "Não foi possível salvar o livro. Verifique se o código já está sendo utilizado."
-      );
+      alert("Não foi possível salvar o livro.");
     }
   }
 
-  function limparFormularioPessoa() {
+  function fecharFormularioPessoa() {
     setNomePessoa("");
     setTelefonePessoa("");
     setObservacaoPessoa("");
-  }
-
-  function fecharFormularioPessoa() {
-    limparFormularioPessoa();
     setMostrarCadastroPessoa(false);
   }
 
@@ -227,6 +283,97 @@ function App() {
     }
   }
 
+  function abrirNovoEmprestimo() {
+    setPessoaEmprestimo("");
+    setLivroEmprestimo("");
+    setDataEmprestimo(dataHoje());
+    setDataPrevista(dataDaquiADias(14));
+    setMostrarNovoEmprestimo(true);
+    setTela("emprestimos");
+  }
+
+  function fecharNovoEmprestimo() {
+    setMostrarNovoEmprestimo(false);
+    setPessoaEmprestimo("");
+    setLivroEmprestimo("");
+  }
+
+  async function salvarEmprestimo() {
+    if (
+      !pessoaEmprestimo ||
+      !livroEmprestimo ||
+      !dataEmprestimo ||
+      !dataPrevista
+    ) {
+      alert("Preencha todos os dados do empréstimo.");
+      return;
+    }
+
+    if (dataPrevista < dataEmprestimo) {
+      alert(
+        "A previsão de devolução não pode ser anterior à data do empréstimo."
+      );
+      return;
+    }
+
+    try {
+      const db = await Database.load("sqlite:biblioteca.db");
+
+      const livroSelecionado = livros.find(
+        (livro) => livro.codigo === livroEmprestimo
+      );
+
+      if (!livroSelecionado || !livroSelecionado.disponivel) {
+        alert("Este livro não está disponível para empréstimo.");
+        return;
+      }
+
+      await db.execute("BEGIN TRANSACTION");
+
+      try {
+        await db.execute(
+          `
+            INSERT INTO emprestimos (
+              pessoa_id,
+              livro_codigo,
+              data_emprestimo,
+              data_prevista
+            )
+            VALUES ($1, $2, $3, $4)
+          `,
+          [
+            Number(pessoaEmprestimo),
+            livroEmprestimo,
+            dataEmprestimo,
+            dataPrevista,
+          ]
+        );
+
+        await db.execute(
+          `
+            UPDATE livros
+            SET disponivel = 0
+            WHERE codigo = $1
+          `,
+          [livroEmprestimo]
+        );
+
+        await db.execute("COMMIT");
+      } catch (erro) {
+        await db.execute("ROLLBACK");
+        throw erro;
+      }
+
+      fecharNovoEmprestimo();
+
+      await carregarLivros();
+      await carregarEmprestimos();
+    } catch (erro) {
+      console.error("Erro ao registrar empréstimo:", erro);
+      alert("Não foi possível registrar o empréstimo.");
+    }
+  }
+
   const termoPesquisa = pesquisa.trim().toLowerCase();
 
   const livrosFiltrados = livros.filter((livro) => {
@@ -238,6 +385,8 @@ function App() {
       livro.codigo.toLowerCase().includes(termoPesquisa)
     );
   });
+
+  const livrosDisponiveis = livros.filter((livro) => livro.disponivel);
 
   return (
     <div className="app">
@@ -253,7 +402,9 @@ function App() {
           <>
             <section className="acoes">
               <button onClick={abrirNovoLivro}>+ Cadastrar livro</button>
-              <button>+ Novo empréstimo</button>
+              <button onClick={abrirNovoEmprestimo}>
+                + Novo empréstimo
+              </button>
             </section>
 
             {mostrarCadastroLivro && (
@@ -277,7 +428,6 @@ function App() {
                     <input
                       value={codigo}
                       onChange={(e) => setCodigo(e.target.value)}
-                      placeholder="Ex.: 003"
                     />
                   </label>
 
@@ -286,7 +436,6 @@ function App() {
                     <input
                       value={titulo}
                       onChange={(e) => setTitulo(e.target.value)}
-                      placeholder="Nome do livro"
                     />
                   </label>
 
@@ -295,7 +444,6 @@ function App() {
                     <input
                       value={autor}
                       onChange={(e) => setAutor(e.target.value)}
-                      placeholder="Nome do autor"
                     />
                   </label>
                 </div>
@@ -317,7 +465,6 @@ function App() {
 
             <section className="pesquisa">
               <input
-                type="text"
                 value={pesquisa}
                 onChange={(e) => setPesquisa(e.target.value)}
                 placeholder="Pesquisar por código, título ou autor..."
@@ -341,11 +488,7 @@ function App() {
                 <tbody>
                   {livrosFiltrados.length === 0 ? (
                     <tr>
-                      <td colSpan={5}>
-                        {pesquisa.trim()
-                          ? "Nenhum livro encontrado."
-                          : "Nenhum livro cadastrado."}
-                      </td>
+                      <td colSpan={5}>Nenhum livro encontrado.</td>
                     </tr>
                   ) : (
                     livrosFiltrados.map((livro) => (
@@ -411,7 +554,6 @@ function App() {
                     <input
                       value={nomePessoa}
                       onChange={(e) => setNomePessoa(e.target.value)}
-                      placeholder="Nome completo"
                     />
                   </label>
 
@@ -420,7 +562,6 @@ function App() {
                     <input
                       value={telefonePessoa}
                       onChange={(e) => setTelefonePessoa(e.target.value)}
-                      placeholder="Telefone"
                     />
                   </label>
 
@@ -429,7 +570,6 @@ function App() {
                     <input
                       value={observacaoPessoa}
                       onChange={(e) => setObservacaoPessoa(e.target.value)}
-                      placeholder="Opcional"
                     />
                   </label>
                 </div>
@@ -478,12 +618,145 @@ function App() {
             </section>
           </>
         )}
+
+        {tela === "emprestimos" && (
+          <>
+            <section className="acoes">
+              <button onClick={abrirNovoEmprestimo}>
+                + Novo empréstimo
+              </button>
+            </section>
+
+            {mostrarNovoEmprestimo && (
+              <section className="formulario">
+                <div className="formulario-topo">
+                  <h2>Novo empréstimo</h2>
+
+                  <button
+                    className="fechar"
+                    onClick={fecharNovoEmprestimo}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="campos">
+                  <label>
+                    Pessoa
+                    <select
+                      value={pessoaEmprestimo}
+                      onChange={(e) => setPessoaEmprestimo(e.target.value)}
+                    >
+                      <option value="">Selecione...</option>
+
+                      {pessoas.map((pessoa) => (
+                        <option key={pessoa.id} value={pessoa.id}>
+                          {pessoa.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    Livro
+                    <select
+                      value={livroEmprestimo}
+                      onChange={(e) => setLivroEmprestimo(e.target.value)}
+                    >
+                      <option value="">Selecione...</option>
+
+                      {livrosDisponiveis.map((livro) => (
+                        <option key={livro.codigo} value={livro.codigo}>
+                          {livro.titulo}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    Data do empréstimo
+                    <input
+                      type="date"
+                      value={dataEmprestimo}
+                      onChange={(e) => setDataEmprestimo(e.target.value)}
+                    />
+                  </label>
+
+                  <label>
+                    Previsão de devolução
+                    <input
+                      type="date"
+                      value={dataPrevista}
+                      onChange={(e) => setDataPrevista(e.target.value)}
+                    />
+                  </label>
+                </div>
+
+                <div className="formulario-acoes">
+                  <button
+                    className="cancelar"
+                    onClick={fecharNovoEmprestimo}
+                  >
+                    Cancelar
+                  </button>
+
+                  <button onClick={salvarEmprestimo}>
+                    Confirmar empréstimo
+                  </button>
+                </div>
+              </section>
+            )}
+
+            <section className="painel">
+              <h2>Empréstimos</h2>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Pessoa</th>
+                    <th>Livro</th>
+                    <th>Empréstimo</th>
+                    <th>Previsão</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {emprestimos.length === 0 ? (
+                    <tr>
+                      <td colSpan={5}>Nenhum empréstimo registrado.</td>
+                    </tr>
+                  ) : (
+                    emprestimos.map((emprestimo) => (
+                      <tr key={emprestimo.id}>
+                        <td>{emprestimo.pessoa_nome}</td>
+                        <td>{emprestimo.livro_titulo}</td>
+                        <td>{formatarData(emprestimo.data_emprestimo)}</td>
+                        <td>{formatarData(emprestimo.data_prevista)}</td>
+                        <td>
+                          {emprestimo.data_devolucao
+                            ? "Devolvido"
+                            : "Emprestado"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </section>
+          </>
+        )}
       </main>
 
       <nav className="menu">
         <button onClick={() => setTela("livros")}>Livros</button>
-        <button>Empréstimos</button>
+
+        <button onClick={() => setTela("emprestimos")}>
+          Empréstimos
+        </button>
+
         <button onClick={() => setTela("pessoas")}>Pessoas</button>
+
         <button>Backup</button>
       </nav>
     </div>

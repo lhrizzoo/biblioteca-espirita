@@ -238,3 +238,27 @@ td {
   background: #ecefed;
   color: #455049;
 }
+.botao-editar {
+  border: 1px solid #d8ddda;
+  background: #ffffff;
+  color: #315c45;
+  border-radius: 6px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.botao-editar:hover {
+  background: #eef3f0;
+}
+.campos select {
+  padding: 11px 12px;
+  border: 1px solid #d8ddda;
+  border-radius: 7px;
+  background: white;
+  outline: none;
+}
+
+.campos select:focus {
+  border-color: #315c45;
+}
