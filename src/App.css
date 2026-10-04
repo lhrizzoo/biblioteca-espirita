@@ -12,14 +12,21 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
+}
+
+button {
+  transition: 0.15s ease;
 }
 
 .app {
   min-height: 100vh;
-  padding-bottom: 75px;
+  padding-bottom: 78px;
 }
+
+/* TOPO */
 
 .topo {
   background: #ffffff;
@@ -39,11 +46,15 @@ input {
   font-size: 14px;
 }
 
+/* CONTEÚDO */
+
 .conteudo {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 28px 32px;
 }
+
+/* BOTÕES PRINCIPAIS */
 
 .acoes {
   display: flex;
@@ -51,7 +62,8 @@ input {
   margin-bottom: 20px;
 }
 
-.acoes button {
+.acoes button,
+.formulario-acoes button {
   border: 0;
   border-radius: 8px;
   background: #315c45;
@@ -61,109 +73,23 @@ input {
   font-weight: 600;
 }
 
-.acoes button:hover {
+.acoes button:hover,
+.formulario-acoes button:hover {
   background: #274b38;
 }
 
-.pesquisa {
-  margin-bottom: 20px;
-}
-
-.pesquisa input {
-  width: 100%;
-  padding: 13px 15px;
+.acoes .botao-secundario {
+  background: #ffffff;
+  color: #315c45;
   border: 1px solid #d8ddda;
-  border-radius: 8px;
-  background: white;
-  outline: none;
 }
 
-.pesquisa input:focus {
-  border-color: #315c45;
+.acoes .botao-secundario:hover {
+  background: #eef3f0;
 }
 
-.painel {
-  background: white;
-  border: 1px solid #e1e5e2;
-  border-radius: 10px;
-  overflow: hidden;
-}
+/* FORMULÁRIOS */
 
-.painel h2 {
-  margin: 0;
-  padding: 20px;
-  font-size: 18px;
-  border-bottom: 1px solid #e1e5e2;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th,
-td {
-  padding: 15px 20px;
-  text-align: left;
-  border-bottom: 1px solid #edf0ee;
-}
-
-th {
-  color: #69736d;
-  font-size: 13px;
-  font-weight: 600;
-  background: #fafbfa;
-}
-
-td {
-  font-size: 14px;
-}
-
-.disponivel,
-.emprestado {
-  display: inline-block;
-  padding: 5px 9px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.disponivel {
-  background: #e5f3e9;
-  color: #25633c;
-}
-
-.emprestado {
-  background: #fff0dc;
-  color: #8a5413;
-}
-
-.menu {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  background: white;
-  border-top: 1px solid #e1e5e2;
-}
-
-.menu button {
-  background: transparent;
-  border: 0;
-  border-radius: 7px;
-  padding: 10px 18px;
-  color: #59645e;
-  cursor: pointer;
-}
-
-.menu button:hover {
-  background: #eef1ef;
-  color: #25302a;
-}
 .formulario {
   background: white;
   border: 1px solid #e1e5e2;
@@ -192,10 +118,18 @@ td {
   color: #68716c;
 }
 
+.fechar:hover {
+  color: #25302a;
+}
+
 .campos {
   display: grid;
   grid-template-columns: 150px 1fr 1fr;
   gap: 15px;
+}
+
+.campos-emprestimo {
+  grid-template-columns: 1.3fr 1.7fr 1fr 1fr;
 }
 
 .campos label {
@@ -206,14 +140,19 @@ td {
   font-weight: 600;
 }
 
-.campos input {
+.campos input,
+.campos select {
+  width: 100%;
   padding: 11px 12px;
   border: 1px solid #d8ddda;
   border-radius: 7px;
+  background: white;
+  color: #25302a;
   outline: none;
 }
 
-.campos input:focus {
+.campos input:focus,
+.campos select:focus {
   border-color: #315c45;
 }
 
@@ -224,41 +163,326 @@ td {
   margin-top: 20px;
 }
 
-.formulario-acoes button {
-  border: 0;
-  border-radius: 7px;
-  padding: 10px 16px;
-  background: #315c45;
-  color: white;
-  cursor: pointer;
-  font-weight: 600;
-}
-
 .formulario-acoes .cancelar {
   background: #ecefed;
   color: #455049;
 }
-.botao-editar {
+
+.formulario-acoes .cancelar:hover {
+  background: #dde2df;
+}
+
+/* PESQUISA */
+
+.pesquisa {
+  margin-bottom: 20px;
+}
+
+.pesquisa input {
+  width: 100%;
+  padding: 13px 15px;
+  border: 1px solid #d8ddda;
+  border-radius: 8px;
+  background: white;
+  outline: none;
+}
+
+.pesquisa input:focus {
+  border-color: #315c45;
+}
+
+/* PAINÉIS */
+
+.painel {
+  background: white;
+  border: 1px solid #e1e5e2;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.painel + .painel {
+  margin-top: 20px;
+}
+
+.painel h2 {
+  margin: 0;
+  padding: 20px;
+  font-size: 18px;
+}
+
+.painel-titulo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e1e5e2;
+}
+
+.painel-titulo h2 {
+  border: 0;
+}
+
+.contador {
+  margin-right: 20px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: #eef1ef;
+  color: #59645e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.painel-historico {
+  margin-top: 20px;
+}
+
+/* TABELAS */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 15px 20px;
+  text-align: left;
+  border-bottom: 1px solid #edf0ee;
+  vertical-align: middle;
+}
+
+th {
+  color: #69736d;
+  font-size: 13px;
+  font-weight: 600;
+  background: #fafbfa;
+}
+
+td {
+  font-size: 14px;
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+tbody tr:hover {
+  background: #fcfdfc;
+}
+
+/* STATUS */
+
+.disponivel,
+.emprestado,
+.status-atrasado {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.disponivel {
+  background: #e5f3e9;
+  color: #25633c;
+}
+
+.emprestado {
+  background: #fff0dc;
+  color: #8a5413;
+}
+
+.status-atrasado {
+  background: #fde8e7;
+  color: #a3352f;
+}
+
+/* AÇÕES DAS TABELAS */
+
+.botao-editar,
+.botao-devolver {
   border: 1px solid #d8ddda;
   background: #ffffff;
-  color: #315c45;
   border-radius: 6px;
   padding: 7px 12px;
   cursor: pointer;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.botao-editar {
+  color: #315c45;
 }
 
 .botao-editar:hover {
   background: #eef3f0;
 }
-.campos select {
-  padding: 11px 12px;
-  border: 1px solid #d8ddda;
-  border-radius: 7px;
-  background: white;
-  outline: none;
+
+.botao-devolver {
+  color: #315c45;
 }
 
-.campos select:focus {
-  border-color: #315c45;
+.botao-devolver:hover {
+  background: #e5f3e9;
+  border-color: #b9d5c1;
+}
+
+/* MENU INFERIOR */
+
+.menu {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 12px;
+
+  background: white;
+  border-top: 1px solid #e1e5e2;
+}
+
+.menu button {
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  padding: 10px 18px;
+  color: #59645e;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.menu button:hover {
+  background: #eef1ef;
+  color: #25302a;
+}
+
+.menu .menu-ativo {
+  background: #e8f0eb;
+  color: #315c45;
+  font-weight: 700;
+}
+
+/* CARREGAMENTO */
+
+.carregando {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f6f4;
+  color: #59645e;
+}
+
+/* TELAS MENORES */
+
+@media (max-width: 900px) {
+  .campos,
+  .campos-emprestimo {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .conteudo {
+    padding: 22px;
+  }
+
+  th,
+  td {
+    padding: 13px 14px;
+  }
+}
+/* MODAL DE DEVOLUÇÃO */
+
+.modal-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(20, 30, 25, 0.45);
+}
+
+.modal {
+  width: 100%;
+  max-width: 480px;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+}
+
+.modal h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+
+.modal p {
+  margin: 12px 0;
+  color: #59645e;
+  line-height: 1.5;
+}
+
+.resumo-devolucao {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px;
+  margin: 16px 0;
+  background: #f5f7f5;
+  border: 1px solid #e1e5e2;
+  border-radius: 8px;
+}
+
+.resumo-devolucao strong {
+  color: #25302a;
+  font-size: 16px;
+}
+
+.resumo-devolucao span {
+  color: #59645e;
+  font-size: 14px;
+}
+
+.modal-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.modal-acoes button {
+  border: 0;
+  border-radius: 7px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.cancelar-modal {
+  background: #ecefed;
+  color: #455049;
+}
+
+.cancelar-modal:hover {
+  background: #dde2df;
+}
+
+.confirmar-devolucao {
+  background: #315c45;
+  color: white;
+}
+
+.confirmar-devolucao:hover {
+  background: #274b38;
+}
+
+.modal-acoes button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
