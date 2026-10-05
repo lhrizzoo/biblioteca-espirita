@@ -12,6 +12,12 @@ function Pessoas() {
   const [telefone, setTelefone] = useState("");
   const [observacao, setObservacao] = useState("");
 
+  const [pessoaParaExcluir, setPessoaParaExcluir] =
+    useState<Pessoa | null>(null);
+
+  const [excluindo, setExcluindo] = useState(false);
+  const [mensagem, setMensagem] = useState("");
+
   const editando = idEditando !== null;
 
   async function carregarPessoas() {
@@ -43,6 +49,7 @@ function Pessoas() {
 
   function abrirNovaPessoa() {
     limparFormulario();
+    setMensagem("");
     setMostrarFormulario(true);
   }
 
@@ -51,6 +58,7 @@ function Pessoas() {
     setNome(pessoa.nome);
     setTelefone(pessoa.telefone);
     setObservacao(pessoa.observacao);
+    setMensagem("");
     setMostrarFormulario(true);
   }
 
@@ -61,7 +69,7 @@ function Pessoas() {
 
   async function salvarPessoa() {
     if (!nome.trim()) {
-      alert("Informe o nome da pessoa.");
+      setMensagem("Informe o nome da pessoa.");
       return;
     }
 
@@ -82,6 +90,8 @@ function Pessoas() {
             idEditando,
           ]
         );
+
+        setMensagem("Pessoa atualizada com sucesso.");
       } else {
         await db.execute(
           `
@@ -90,20 +100,97 @@ function Pessoas() {
           `,
           [nome.trim(), telefone.trim(), observacao.trim()]
         );
+
+        setMensagem("Pessoa cadastrada com sucesso.");
       }
 
       fecharFormulario();
       await carregarPessoas();
     } catch (erro) {
       console.error("Erro ao salvar pessoa:", erro);
-      alert("Não foi possível salvar a pessoa.");
+      setMensagem("Não foi possível salvar a pessoa.");
+    }
+  }
+
+  async function solicitarExclusao(pessoa: Pessoa) {
+    try {
+      setMensagem("");
+
+      const db = await obterBanco();
+
+      const resultado = await db.select<{ total: number }[]>(
+        `
+          SELECT COUNT(*) AS total
+          FROM emprestimos
+          WHERE pessoa_id = $1
+        `,
+        [pessoa.id]
+      );
+
+      const totalEmprestimos = Number(resultado[0]?.total ?? 0);
+
+      if (totalEmprestimos > 0) {
+        setMensagem(
+          "Esta pessoa não pode ser excluída porque possui empréstimos ou histórico registrados."
+        );
+        return;
+      }
+
+      setPessoaParaExcluir(pessoa);
+    } catch (erro) {
+      console.error("Erro ao verificar pessoa:", erro);
+      setMensagem(
+        "Não foi possível verificar se a pessoa pode ser excluída."
+      );
+    }
+  }
+
+  function cancelarExclusao() {
+    if (excluindo) {
+      return;
+    }
+
+    setPessoaParaExcluir(null);
+  }
+
+  async function confirmarExclusao() {
+    if (!pessoaParaExcluir || excluindo) {
+      return;
+    }
+
+    try {
+      setExcluindo(true);
+      setMensagem("");
+
+      const db = await obterBanco();
+
+      await db.execute(
+        `
+          DELETE FROM pessoas
+          WHERE id = $1
+        `,
+        [pessoaParaExcluir.id]
+      );
+
+      setPessoaParaExcluir(null);
+
+      setMensagem("Pessoa excluída com sucesso.");
+
+      await carregarPessoas();
+    } catch (erro) {
+      console.error("Erro ao excluir pessoa:", erro);
+      setMensagem("Não foi possível excluir a pessoa.");
+    } finally {
+      setExcluindo(false);
     }
   }
 
   const termo = pesquisa.trim().toLowerCase();
 
   const pessoasFiltradas = pessoas.filter((pessoa) => {
-    if (!termo) return true;
+    if (!termo) {
+      return true;
+    }
 
     return (
       pessoa.nome.toLowerCase().includes(termo) ||
@@ -115,15 +202,30 @@ function Pessoas() {
   return (
     <>
       <section className="acoes">
-        <button onClick={abrirNovaPessoa}>+ Cadastrar pessoa</button>
+        <button onClick={abrirNovaPessoa}>
+          + Cadastrar pessoa
+        </button>
       </section>
+
+      {mensagem && (
+        <section className="formulario">
+          <p>{mensagem}</p>
+        </section>
+      )}
 
       {mostrarFormulario && (
         <section className="formulario">
           <div className="formulario-topo">
-            <h2>{editando ? "Editar pessoa" : "Cadastrar pessoa"}</h2>
+            <h2>
+              {editando
+                ? "Editar pessoa"
+                : "Cadastrar pessoa"}
+            </h2>
 
-            <button className="fechar" onClick={fecharFormulario}>
+            <button
+              className="fechar"
+              onClick={fecharFormulario}
+            >
               ×
             </button>
           </div>
@@ -158,12 +260,17 @@ function Pessoas() {
           </div>
 
           <div className="formulario-acoes">
-            <button className="cancelar" onClick={fecharFormulario}>
+            <button
+              className="cancelar"
+              onClick={fecharFormulario}
+            >
               Cancelar
             </button>
 
             <button onClick={salvarPessoa}>
-              {editando ? "Salvar alterações" : "Salvar pessoa"}
+              {editando
+                ? "Salvar alterações"
+                : "Salvar pessoa"}
             </button>
           </div>
         </section>
@@ -207,12 +314,29 @@ function Pessoas() {
                   <td>{pessoa.observacao || "—"}</td>
 
                   <td>
-                    <button
-                      className="botao-editar"
-                      onClick={() => abrirEdicao(pessoa)}
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                      }}
                     >
-                      Editar
-                    </button>
+                      <button
+                        className="botao-editar"
+                        onClick={() => abrirEdicao(pessoa)}
+                      >
+                        Editar
+                      </button>
+
+                      <button
+                        className="botao-devolver"
+                        onClick={() =>
+                          solicitarExclusao(pessoa)
+                        }
+                      >
+                        Excluir
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -220,6 +344,51 @@ function Pessoas() {
           </tbody>
         </table>
       </section>
+
+      {pessoaParaExcluir && (
+        <div className="modal-fundo">
+          <div className="modal">
+            <h2>Excluir pessoa</h2>
+
+            <p>
+              Tem certeza de que deseja excluir esta pessoa?
+            </p>
+
+            <div className="resumo-devolucao">
+              <strong>{pessoaParaExcluir.nome}</strong>
+
+              <span>
+                Telefone:{" "}
+                {pessoaParaExcluir.telefone || "Não informado"}
+              </span>
+            </div>
+
+            <p>
+              Esta ação não poderá ser desfeita.
+            </p>
+
+            <div className="modal-acoes">
+              <button
+                className="cancelar-modal"
+                onClick={cancelarExclusao}
+                disabled={excluindo}
+              >
+                Cancelar
+              </button>
+
+              <button
+                className="confirmar-devolucao"
+                onClick={confirmarExclusao}
+                disabled={excluindo}
+              >
+                {excluindo
+                  ? "Excluindo..."
+                  : "Confirmar exclusão"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
