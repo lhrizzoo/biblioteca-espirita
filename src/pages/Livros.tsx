@@ -1,6 +1,54 @@
 import { useEffect, useState } from "react";
+import Papa from "papaparse";
+import { open } from "@tauri-apps/plugin-dialog";
+import { readTextFile } from "@tauri-apps/plugin-fs";
+
 import { obterBanco } from "../database/database";
 import type { Livro, LivroBanco } from "../types";
+
+type LivroImportacao = {
+  codigo: string;
+  titulo: string;
+  autor: string;
+  valido: boolean;
+  motivo: string;
+};
+
+function normalizarCabecalho(valor: string) {
+  return valor
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\s_-]/g, "");
+}
+
+function encontrarValor(
+  linha: Record<string, unknown>,
+  nomesAceitos: string[]
+) {
+  const chaves = Object.keys(linha);
+
+  for (const chave of chaves) {
+    const chaveNormalizada = normalizarCabecalho(chave);
+
+    if (
+      nomesAceitos.some(
+        (nome) => normalizarCabecalho(nome) === chaveNormalizada
+      )
+    ) {
+      const valor = linha[chave];
+
+      if (valor === null || valor === undefined) {
+        return "";
+      }
+
+      return String(valor).trim();
+    }
+  }
+
+  return "";
+}
 
 function Livros() {
   const [livros, setLivros] = useState<Livro[]>([]);
@@ -11,6 +59,14 @@ function Livros() {
   const [titulo, setTitulo] = useState("");
   const [autor, setAutor] = useState("");
   const [codigoOriginal, setCodigoOriginal] = useState<string | null>(null);
+
+  const [arquivoImportacao, setArquivoImportacao] = useState("");
+  const [livrosImportacao, setLivrosImportacao] = useState<
+    LivroImportacao[]
+  >([]);
+  const [mostrarImportacao, setMostrarImportacao] = useState(false);
+  const [importando, setImportando] = useState(false);
+  const [mensagemImportacao, setMensagemImportacao] = useState("");
 
   const editando = codigoOriginal !== null;
 
@@ -82,7 +138,12 @@ function Livros() {
             SET codigo = $1, titulo = $2, autor = $3
             WHERE codigo = $4
           `,
-          [codigo.trim(), titulo.trim(), autor.trim(), codigoOriginal]
+          [
+            codigo.trim(),
+            titulo.trim(),
+            autor.trim(),
+            codigoOriginal,
+          ]
         );
       } else {
         await db.execute(
@@ -98,16 +159,230 @@ function Livros() {
       await carregarLivros();
     } catch (erro) {
       console.error("Erro ao salvar livro:", erro);
+
       alert(
         "Não foi possível salvar o livro. Verifique se o código já está sendo utilizado."
       );
     }
   }
 
+  async function escolherArquivoCSV() {
+    try {
+      setMensagemImportacao("");
+
+      const arquivo = await open({
+        multiple: false,
+        directory: false,
+        title: "Escolha a planilha CSV de livros",
+        filters: [
+          {
+            name: "Arquivo CSV",
+            extensions: ["csv"],
+          },
+        ],
+      });
+
+      if (!arquivo || typeof arquivo !== "string") {
+        return;
+      }
+
+      const conteudo = await readTextFile(arquivo);
+
+      const resultado = Papa.parse<Record<string, unknown>>(conteudo, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (cabecalho) => cabecalho.trim(),
+      });
+
+      if (resultado.errors.length > 0 && resultado.data.length === 0) {
+        setMensagemImportacao(
+          "Não foi possível interpretar o arquivo CSV."
+        );
+        return;
+      }
+
+      const codigosExistentes = new Set(
+        livros.map((livro) => livro.codigo.trim().toLowerCase())
+      );
+
+      const codigosDoArquivo = new Set<string>();
+
+      const preparados: LivroImportacao[] = resultado.data.map(
+        (linha) => {
+          const codigoLinha = encontrarValor(linha, [
+            "codigo",
+            "código",
+            "cod",
+          ]);
+
+          const tituloLinha = encontrarValor(linha, [
+            "titulo",
+            "título",
+            "livro",
+            "nome",
+          ]);
+
+          const autorLinha = encontrarValor(linha, [
+            "autor",
+            "autoria",
+          ]);
+
+          let valido = true;
+          let motivo = "";
+
+          if (!codigoLinha || !tituloLinha || !autorLinha) {
+            valido = false;
+            motivo = "Dados obrigatórios incompletos";
+          }
+
+          const codigoNormalizado = codigoLinha.toLowerCase();
+
+          if (
+            valido &&
+            codigosExistentes.has(codigoNormalizado)
+          ) {
+            valido = false;
+            motivo = "Código já existe no acervo";
+          }
+
+          if (
+            valido &&
+            codigosDoArquivo.has(codigoNormalizado)
+          ) {
+            valido = false;
+            motivo = "Código repetido no arquivo";
+          }
+
+          if (codigoLinha) {
+            codigosDoArquivo.add(codigoNormalizado);
+          }
+
+          return {
+            codigo: codigoLinha,
+            titulo: tituloLinha,
+            autor: autorLinha,
+            valido,
+            motivo,
+          };
+        }
+      );
+
+      setArquivoImportacao(
+        arquivo.split("\\").join("/").split("/").pop() ?? arquivo
+      );
+
+      setLivrosImportacao(preparados);
+      setMostrarImportacao(true);
+    } catch (erro) {
+      console.error("Erro ao abrir CSV:", erro);
+
+      const detalhe =
+        erro instanceof Error ? erro.message : String(erro);
+
+      setMensagemImportacao(
+        `Não foi possível abrir o arquivo CSV: ${detalhe}`
+      );
+    }
+  }
+
+  function fecharImportacao() {
+    if (importando) {
+      return;
+    }
+
+    setMostrarImportacao(false);
+    setArquivoImportacao("");
+    setLivrosImportacao([]);
+    setMensagemImportacao("");
+  }
+
+  async function confirmarImportacao() {
+    const validos = livrosImportacao.filter(
+      (livro) => livro.valido
+    );
+
+    if (validos.length === 0) {
+      setMensagemImportacao(
+        "Não há nenhum livro válido para importar."
+      );
+      return;
+    }
+
+    setImportando(true);
+    setMensagemImportacao("");
+
+    try {
+      const db = await obterBanco();
+
+      await db.execute("BEGIN TRANSACTION");
+
+      try {
+        for (const livro of validos) {
+          await db.execute(
+            `
+              INSERT INTO livros (
+                codigo,
+                titulo,
+                autor,
+                disponivel
+              )
+              VALUES ($1, $2, $3, 1)
+            `,
+            [
+              livro.codigo.trim(),
+              livro.titulo.trim(),
+              livro.autor.trim(),
+            ]
+          );
+        }
+
+        await db.execute("COMMIT");
+      } catch (erro) {
+        await db.execute("ROLLBACK");
+        throw erro;
+      }
+
+      const ignorados =
+        livrosImportacao.length - validos.length;
+
+      await carregarLivros();
+
+      setLivrosImportacao([]);
+      setArquivoImportacao("");
+
+      setMensagemImportacao(
+        `${validos.length} ${
+          validos.length === 1 ? "livro importado" : "livros importados"
+        } com sucesso${
+          ignorados > 0
+            ? `. ${ignorados} ${
+                ignorados === 1
+                  ? "linha foi ignorada"
+                  : "linhas foram ignoradas"
+              }.`
+            : "."
+        }`
+      );
+    } catch (erro) {
+      console.error("Erro ao importar livros:", erro);
+
+      const detalhe =
+        erro instanceof Error ? erro.message : String(erro);
+
+      setMensagemImportacao(
+        `Não foi possível concluir a importação: ${detalhe}`
+      );
+    } finally {
+      setImportando(false);
+    }
+  }
+
   const termo = pesquisa.trim().toLowerCase();
 
   const livrosFiltrados = livros.filter((livro) => {
-    if (!termo) return true;
+    if (!termo) {
+      return true;
+    }
 
     return (
       livro.codigo.toLowerCase().includes(termo) ||
@@ -116,18 +391,45 @@ function Livros() {
     );
   });
 
+  const quantidadeValidos = livrosImportacao.filter(
+    (livro) => livro.valido
+  ).length;
+
+  const quantidadeInvalidos =
+    livrosImportacao.length - quantidadeValidos;
+
   return (
     <>
       <section className="acoes">
-        <button onClick={abrirNovoLivro}>+ Cadastrar livro</button>
+        <button onClick={abrirNovoLivro}>
+          + Cadastrar livro
+        </button>
+
+        <button
+          className="botao-secundario"
+          onClick={escolherArquivoCSV}
+        >
+          Importar CSV
+        </button>
       </section>
+
+      {mensagemImportacao && !mostrarImportacao && (
+        <section className="formulario">
+          <p>{mensagemImportacao}</p>
+        </section>
+      )}
 
       {mostrarFormulario && (
         <section className="formulario">
           <div className="formulario-topo">
-            <h2>{editando ? "Editar livro" : "Cadastrar livro"}</h2>
+            <h2>
+              {editando ? "Editar livro" : "Cadastrar livro"}
+            </h2>
 
-            <button className="fechar" onClick={fecharFormulario}>
+            <button
+              className="fechar"
+              onClick={fecharFormulario}
+            >
               ×
             </button>
           </div>
@@ -162,12 +464,17 @@ function Livros() {
           </div>
 
           <div className="formulario-acoes">
-            <button className="cancelar" onClick={fecharFormulario}>
+            <button
+              className="cancelar"
+              onClick={fecharFormulario}
+            >
               Cancelar
             </button>
 
             <button onClick={salvarLivro}>
-              {editando ? "Salvar alterações" : "Salvar livro"}
+              {editando
+                ? "Salvar alterações"
+                : "Salvar livro"}
             </button>
           </div>
         </section>
@@ -217,6 +524,100 @@ function Livros() {
           </tbody>
         </table>
       </section>
+
+      {mostrarImportacao && (
+        <div className="modal-fundo">
+          <div
+            className="modal"
+            style={{ maxWidth: "900px" }}
+          >
+            <h2>Importar livros</h2>
+
+            <p>
+              Arquivo: <strong>{arquivoImportacao}</strong>
+            </p>
+
+            <p>
+              Foram encontradas {livrosImportacao.length} linhas.{" "}
+              <strong>{quantidadeValidos}</strong> podem ser
+              importadas e <strong>{quantidadeInvalidos}</strong>{" "}
+              serão ignoradas.
+            </p>
+
+            <div
+              style={{
+                maxHeight: "360px",
+                overflow: "auto",
+                border: "1px solid #e1e5e2",
+                borderRadius: "8px",
+              }}
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Título</th>
+                    <th>Autor</th>
+                    <th>Validação</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {livrosImportacao.map((livro, indice) => (
+                    <tr key={`${livro.codigo}-${indice}`}>
+                      <td>{livro.codigo || "—"}</td>
+                      <td>{livro.titulo || "—"}</td>
+                      <td>{livro.autor || "—"}</td>
+
+                      <td>
+                        {livro.valido ? (
+                          <span className="disponivel">
+                            Pronto
+                          </span>
+                        ) : (
+                          <span className="status-atrasado">
+                            {livro.motivo}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {mensagemImportacao && (
+              <p>{mensagemImportacao}</p>
+            )}
+
+            <div className="modal-acoes">
+              <button
+                className="cancelar-modal"
+                onClick={fecharImportacao}
+                disabled={importando}
+              >
+                Cancelar
+              </button>
+
+              <button
+                className="confirmar-devolucao"
+                onClick={confirmarImportacao}
+                disabled={
+                  importando || quantidadeValidos === 0
+                }
+              >
+                {importando
+                  ? "Importando..."
+                  : `Importar ${quantidadeValidos} ${
+                      quantidadeValidos === 1
+                        ? "livro"
+                        : "livros"
+                    }`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -228,7 +629,8 @@ function LinhaLivro({
   livro: Livro;
   abrirEdicao: (livro: Livro) => void;
 }) {
-  const [emprestadoPara, setEmprestadoPara] = useState<string>("");
+  const [emprestadoPara, setEmprestadoPara] =
+    useState<string>("");
 
   useEffect(() => {
     async function buscarPessoa() {
@@ -241,21 +643,28 @@ function LinhaLivro({
         const db = await obterBanco();
 
         const resultado = await db.select<{ nome: string }[]>(
-  `
-    SELECT p.nome
-    FROM emprestimos e
-    INNER JOIN pessoas p ON p.id = e.pessoa_id
-    WHERE e.livro_codigo = $1
-      AND e.data_devolucao IS NULL
-    ORDER BY e.id DESC
-    LIMIT 1
-  `,
-  [livro.codigo]
-);
+          `
+            SELECT p.nome
+            FROM emprestimos e
+            INNER JOIN pessoas p
+              ON p.id = e.pessoa_id
+            WHERE e.livro_codigo = $1
+              AND e.data_devolucao IS NULL
+            ORDER BY e.id DESC
+            LIMIT 1
+          `,
+          [livro.codigo]
+        );
 
-        setEmprestadoPara(resultado[0]?.nome ?? "Não identificado");
+        setEmprestadoPara(
+          resultado[0]?.nome ?? "Não identificado"
+        );
       } catch (erro) {
-        console.error("Erro ao localizar empréstimo:", erro);
+        console.error(
+          "Erro ao localizar empréstimo:",
+          erro
+        );
+
         setEmprestadoPara("Não identificado");
       }
     }
@@ -270,15 +679,30 @@ function LinhaLivro({
       <td>{livro.autor}</td>
 
       <td>
-        <span className={livro.disponivel ? "disponivel" : "emprestado"}>
-          {livro.disponivel ? "Disponível" : "Emprestado"}
+        <span
+          className={
+            livro.disponivel
+              ? "disponivel"
+              : "emprestado"
+          }
+        >
+          {livro.disponivel
+            ? "Disponível"
+            : "Emprestado"}
         </span>
       </td>
 
-      <td>{livro.disponivel ? "—" : emprestadoPara || "Carregando..."}</td>
+      <td>
+        {livro.disponivel
+          ? "—"
+          : emprestadoPara || "Carregando..."}
+      </td>
 
       <td>
-        <button className="botao-editar" onClick={() => abrirEdicao(livro)}>
+        <button
+          className="botao-editar"
+          onClick={() => abrirEdicao(livro)}
+        >
           Editar
         </button>
       </td>
