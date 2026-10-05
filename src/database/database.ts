@@ -39,5 +39,12 @@ export async function iniciarBanco() {
     )
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS configuracoes (
+      chave TEXT PRIMARY KEY,
+      valor TEXT NOT NULL
+    )
+  `);
+
   return db;
 }
