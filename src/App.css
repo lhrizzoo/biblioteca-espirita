@@ -486,3 +486,165 @@ tbody tr:hover {
   opacity: 0.6;
   cursor: default;
 }
+/* BACKUP E EXPORTAÇÃO */
+
+.backup-pagina {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.backup-cabecalho {
+  margin-bottom: 4px;
+}
+
+.backup-cabecalho h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+
+.backup-cabecalho p {
+  margin: 0;
+  color: #69736d;
+  line-height: 1.5;
+}
+
+.backup-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+
+  padding: 18px 20px;
+
+  background: #ffffff;
+  border: 1px solid #e1e5e2;
+  border-radius: 10px;
+}
+
+.backup-status-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.backup-status-info span {
+  color: #69736d;
+  font-size: 13px;
+}
+
+.backup-status-info strong {
+  color: #25302a;
+  font-size: 16px;
+}
+
+.backup-status-ok {
+  padding: 6px 11px;
+  border-radius: 20px;
+
+  background: #e5f3e9;
+  color: #25633c;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.backup-alerta {
+  padding: 14px 16px;
+
+  background: #fff4e5;
+  border: 1px solid #efd3a5;
+  border-radius: 8px;
+
+  color: #805215;
+  line-height: 1.5;
+}
+
+.backup-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.backup-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+
+  padding: 20px;
+
+  background: #ffffff;
+  border: 1px solid #e1e5e2;
+  border-radius: 10px;
+}
+
+.backup-card h3 {
+  margin: 0 0 8px;
+  font-size: 17px;
+}
+
+.backup-card p {
+  flex: 1;
+
+  margin: 0 0 20px;
+
+  color: #69736d;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.backup-card button {
+  width: 100%;
+
+  border: 0;
+  border-radius: 8px;
+
+  padding: 11px 14px;
+
+  background: #315c45;
+  color: #ffffff;
+
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.backup-card button:hover {
+  background: #274b38;
+}
+
+.backup-card button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.backup-card .botao-secundario {
+  background: #ffffff;
+  color: #315c45;
+  border: 1px solid #d8ddda;
+}
+
+.backup-card .botao-secundario:hover {
+  background: #eef3f0;
+}
+
+.backup-mensagem {
+  padding: 13px 16px;
+
+  background: #eef3f0;
+  border: 1px solid #d8e2dc;
+  border-radius: 8px;
+
+  color: #315c45;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .backup-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .backup-status {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

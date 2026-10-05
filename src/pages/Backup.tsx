@@ -516,72 +516,116 @@ function Backup() {
 
   return (
     <>
-      <section>
-        <h2>Backup da biblioteca</h2>
+      <div className="backup-pagina">
+        <div className="backup-cabecalho">
+          <h2>Backup e segurança</h2>
 
-        <p>
-          Crie uma cópia de segurança dos dados da biblioteca para
-          proteger livros, pessoas, empréstimos e histórico.
-        </p>
+          <p>
+            Proteja os dados da biblioteca, restaure cópias anteriores
+            e exporte informações para uso fora do sistema.
+          </p>
+        </div>
 
-        <p>
-          <strong>Último backup:</strong>{" "}
-          {formatarDataHora(ultimoBackup)}
-        </p>
+        <div className="backup-status">
+          <div className="backup-status-info">
+            <span>Último backup</span>
+
+            <strong>
+              {formatarDataHora(ultimoBackup)}
+            </strong>
+          </div>
+
+          {!backupAtrasado && (
+            <span className="backup-status-ok">
+              Em dia
+            </span>
+          )}
+        </div>
 
         {backupAtrasado && (
-          <p>
+          <div className="backup-alerta">
             <strong>Atenção:</strong>{" "}
             {ultimoBackup === null
               ? "Nenhum backup foi registrado ainda."
               : `O último backup foi feito há ${diasSemBackup} dias.`}{" "}
             Recomendamos fazer um novo backup agora.
-          </p>
+          </div>
         )}
 
-        <div className="acoes">
-          <button
-            onClick={fazerBackup}
-            disabled={
-              fazendoBackup ||
-              restaurando ||
-              exportando
-            }
-          >
-            {fazendoBackup
-              ? "Criando backup..."
-              : "Fazer backup agora"}
-          </button>
+        <div className="backup-grid">
+          <div className="backup-card">
+            <h3>Fazer backup</h3>
 
-          <button
-            className="botao-secundario"
-            onClick={escolherBackupParaRestaurar}
-            disabled={
-              fazendoBackup ||
-              restaurando ||
-              exportando
-            }
-          >
-            Restaurar backup
-          </button>
+            <p>
+              Crie uma cópia completa da biblioteca para guardar em
+              outra pasta, pendrive ou dispositivo externo.
+            </p>
 
-          <button
-            className="botao-secundario"
-            onClick={exportarTodosOsDados}
-            disabled={
-              fazendoBackup ||
-              restaurando ||
-              exportando
-            }
-          >
-            {exportando
-              ? "Exportando..."
-              : "Exportar todos os dados"}
-          </button>
+            <button
+              onClick={fazerBackup}
+              disabled={
+                fazendoBackup ||
+                restaurando ||
+                exportando
+              }
+            >
+              {fazendoBackup
+                ? "Criando backup..."
+                : "Fazer backup agora"}
+            </button>
+          </div>
+
+          <div className="backup-card">
+            <h3>Restaurar backup</h3>
+
+            <p>
+              Recupere livros, pessoas, empréstimos e histórico a
+              partir de uma cópia de segurança anterior.
+            </p>
+
+            <button
+              className="botao-secundario"
+              onClick={escolherBackupParaRestaurar}
+              disabled={
+                fazendoBackup ||
+                restaurando ||
+                exportando
+              }
+            >
+              Restaurar backup
+            </button>
+          </div>
+
+          <div className="backup-card">
+            <h3>Exportar dados</h3>
+
+            <p>
+              Gere arquivos CSV separados de livros, pessoas,
+              empréstimos ativos e histórico para abrir em planilhas.
+            </p>
+
+            <button
+              className="botao-secundario"
+              onClick={exportarTodosOsDados}
+              disabled={
+                fazendoBackup ||
+                restaurando ||
+                exportando
+              }
+            >
+              {exportando
+                ? "Exportando..."
+                : "Exportar todos os dados"}
+            </button>
+          </div>
         </div>
 
-        {mensagem && <p>{mensagem}</p>}
-      </section>
+        {mensagem && (
+          <div className="backup-mensagem">
+            {mensagem}
+          </div>
+        )}
+      </div>
 
       {arquivoRestauracao && (
         <div className="modal-fundo">
