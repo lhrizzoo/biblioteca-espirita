@@ -1,9 +1,33 @@
 import { useEffect, useState } from "react";
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { copyFile } from "@tauri-apps/plugin-fs";
+import { copyFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { open } from "@tauri-apps/plugin-dialog";
 
 import { obterBanco } from "../database/database";
+
+type LivroExportacao = {
+  codigo: string;
+  titulo: string;
+  autor: string;
+  disponivel: number;
+};
+
+type PessoaExportacao = {
+  id: number;
+  nome: string;
+  telefone: string;
+  observacao: string;
+};
+
+type EmprestimoExportacao = {
+  id: number;
+  pessoa_nome: string;
+  livro_codigo: string;
+  livro_titulo: string;
+  data_emprestimo: string;
+  data_prevista: string;
+  data_devolucao: string | null;
+};
 
 function criarDataHoraArquivo() {
   const agora = new Date();
@@ -14,6 +38,10 @@ function criarDataHoraArquivo() {
   const segundo = String(agora.getSeconds()).padStart(2, "0");
 
   return `${data}_${hora}-${minuto}-${segundo}`;
+}
+
+function criarDataArquivo() {
+  return new Date().toISOString().split("T")[0];
 }
 
 function formatarDataHora(dataIso: string | null) {
@@ -42,9 +70,44 @@ function calcularDiasSemBackup(dataIso: string | null) {
   return Math.floor(diferenca / (1000 * 60 * 60 * 24));
 }
 
+function escaparCSV(valor: unknown) {
+  if (valor === null || valor === undefined) {
+    return "";
+  }
+
+  const texto = String(valor);
+
+  if (
+    texto.includes(",") ||
+    texto.includes('"') ||
+    texto.includes("\n") ||
+    texto.includes("\r")
+  ) {
+    return `"${texto.split('"').join('""')}"`;
+  }
+
+  return texto;
+}
+
+function montarCSV(
+  cabecalhos: string[],
+  linhas: unknown[][]
+) {
+  const linhasCSV = [
+    cabecalhos.map(escaparCSV).join(","),
+    ...linhas.map((linha) =>
+      linha.map(escaparCSV).join(",")
+    ),
+  ];
+
+  return linhasCSV.join("\n");
+}
+
 function Backup() {
   const [fazendoBackup, setFazendoBackup] = useState(false);
   const [restaurando, setRestaurando] = useState(false);
+  const [exportando, setExportando] = useState(false);
+
   const [mensagem, setMensagem] = useState("");
   const [arquivoRestauracao, setArquivoRestauracao] =
     useState<string | null>(null);
@@ -137,6 +200,181 @@ function Backup() {
       );
     } finally {
       setFazendoBackup(false);
+    }
+  }
+
+  async function exportarTodosOsDados() {
+    try {
+      setExportando(true);
+      setMensagem("");
+
+      const pastaEscolhida = await open({
+        directory: true,
+        multiple: false,
+        title: "Escolha onde salvar os arquivos exportados",
+      });
+
+      if (!pastaEscolhida || typeof pastaEscolhida !== "string") {
+        return;
+      }
+
+      const db = await obterBanco();
+
+      const livros = await db.select<LivroExportacao[]>(`
+        SELECT codigo, titulo, autor, disponivel
+        FROM livros
+        ORDER BY titulo
+      `);
+
+      const pessoas = await db.select<PessoaExportacao[]>(`
+        SELECT id, nome, telefone, observacao
+        FROM pessoas
+        ORDER BY nome
+      `);
+
+      const emprestimos = await db.select<EmprestimoExportacao[]>(`
+        SELECT
+          e.id,
+          p.nome AS pessoa_nome,
+          e.livro_codigo,
+          l.titulo AS livro_titulo,
+          e.data_emprestimo,
+          e.data_prevista,
+          e.data_devolucao
+        FROM emprestimos e
+        INNER JOIN pessoas p
+          ON p.id = e.pessoa_id
+        INNER JOIN livros l
+          ON l.codigo = e.livro_codigo
+        ORDER BY e.id DESC
+      `);
+
+      const ativos = emprestimos.filter(
+        (emprestimo) => emprestimo.data_devolucao === null
+      );
+
+      const historico = emprestimos.filter(
+        (emprestimo) => emprestimo.data_devolucao !== null
+      );
+
+      const dataArquivo = criarDataArquivo();
+
+      const csvLivros = montarCSV(
+        ["codigo", "titulo", "autor", "situacao"],
+        livros.map((livro) => [
+          livro.codigo,
+          livro.titulo,
+          livro.autor,
+          livro.disponivel === 1
+            ? "Disponível"
+            : "Emprestado",
+        ])
+      );
+
+      const csvPessoas = montarCSV(
+        ["id", "nome", "telefone", "observacao"],
+        pessoas.map((pessoa) => [
+          pessoa.id,
+          pessoa.nome,
+          pessoa.telefone,
+          pessoa.observacao,
+        ])
+      );
+
+      const csvAtivos = montarCSV(
+        [
+          "id",
+          "pessoa",
+          "codigo_livro",
+          "titulo_livro",
+          "data_emprestimo",
+          "data_prevista",
+        ],
+        ativos.map((emprestimo) => [
+          emprestimo.id,
+          emprestimo.pessoa_nome,
+          emprestimo.livro_codigo,
+          emprestimo.livro_titulo,
+          emprestimo.data_emprestimo,
+          emprestimo.data_prevista,
+        ])
+      );
+
+      const csvHistorico = montarCSV(
+        [
+          "id",
+          "pessoa",
+          "codigo_livro",
+          "titulo_livro",
+          "data_emprestimo",
+          "data_prevista",
+          "data_devolucao",
+        ],
+        historico.map((emprestimo) => [
+          emprestimo.id,
+          emprestimo.pessoa_nome,
+          emprestimo.livro_codigo,
+          emprestimo.livro_titulo,
+          emprestimo.data_emprestimo,
+          emprestimo.data_prevista,
+          emprestimo.data_devolucao,
+        ])
+      );
+
+      const caminhoLivros = await join(
+        pastaEscolhida,
+        `Livros_${dataArquivo}.csv`
+      );
+
+      const caminhoPessoas = await join(
+        pastaEscolhida,
+        `Pessoas_${dataArquivo}.csv`
+      );
+
+      const caminhoAtivos = await join(
+        pastaEscolhida,
+        `Emprestimos_Ativos_${dataArquivo}.csv`
+      );
+
+      const caminhoHistorico = await join(
+        pastaEscolhida,
+        `Historico_Emprestimos_${dataArquivo}.csv`
+      );
+
+      await writeTextFile(
+        caminhoLivros,
+        `\uFEFF${csvLivros}`
+      );
+
+      await writeTextFile(
+        caminhoPessoas,
+        `\uFEFF${csvPessoas}`
+      );
+
+      await writeTextFile(
+        caminhoAtivos,
+        `\uFEFF${csvAtivos}`
+      );
+
+      await writeTextFile(
+        caminhoHistorico,
+        `\uFEFF${csvHistorico}`
+      );
+
+      setMensagem(
+        "Exportação concluída com sucesso. Foram criados 4 arquivos CSV."
+      );
+    } catch (erro) {
+      console.error("Erro ao exportar dados:", erro);
+
+      const detalhe =
+        erro instanceof Error ? erro.message : String(erro);
+
+      setMensagem(
+        `Não foi possível exportar os dados: ${detalhe}`
+      );
+    } finally {
+      setExportando(false);
     }
   }
 
@@ -271,6 +509,7 @@ function Backup() {
   }
 
   const diasSemBackup = calcularDiasSemBackup(ultimoBackup);
+
   const backupAtrasado =
     ultimoBackup === null ||
     (diasSemBackup !== null && diasSemBackup >= 3);
@@ -303,7 +542,11 @@ function Backup() {
         <div className="acoes">
           <button
             onClick={fazerBackup}
-            disabled={fazendoBackup || restaurando}
+            disabled={
+              fazendoBackup ||
+              restaurando ||
+              exportando
+            }
           >
             {fazendoBackup
               ? "Criando backup..."
@@ -313,9 +556,27 @@ function Backup() {
           <button
             className="botao-secundario"
             onClick={escolherBackupParaRestaurar}
-            disabled={fazendoBackup || restaurando}
+            disabled={
+              fazendoBackup ||
+              restaurando ||
+              exportando
+            }
           >
             Restaurar backup
+          </button>
+
+          <button
+            className="botao-secundario"
+            onClick={exportarTodosOsDados}
+            disabled={
+              fazendoBackup ||
+              restaurando ||
+              exportando
+            }
+          >
+            {exportando
+              ? "Exportando..."
+              : "Exportar todos os dados"}
           </button>
         </div>
 

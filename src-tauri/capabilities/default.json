@@ -13,6 +13,7 @@
     "sql:allow-select",
     "fs:default",
     "fs:allow-copy-file",
+    "fs:allow-write-text-file",
     "dialog:default"
   ]
 }
