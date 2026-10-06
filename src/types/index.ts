@@ -2,6 +2,7 @@ export type Tela = "livros" | "emprestimos" | "pessoas" | "backup";
 
 export type Livro = {
   codigo: string;
+  codigo_barras: string;
   titulo: string;
   autor: string;
   espirito: string;
@@ -13,6 +14,7 @@ export type Livro = {
 
 export type LivroBanco = {
   codigo: string;
+  codigo_barras: string | null;
   titulo: string;
   autor: string;
   espirito: string;

@@ -27,8 +27,24 @@ function Emprestimos() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [mostrarHistorico, setMostrarHistorico] = useState(false);
 
+  const [mostrarDevolucaoCodigo, setMostrarDevolucaoCodigo] =
+    useState(false);
+
   const [pessoaId, setPessoaId] = useState("");
   const [livroCodigo, setLivroCodigo] = useState("");
+
+  const [codigoBarrasEmprestimo, setCodigoBarrasEmprestimo] =
+    useState("");
+
+  const [mensagemCodigoBarras, setMensagemCodigoBarras] =
+    useState("");
+
+  const [codigoBarrasDevolucao, setCodigoBarrasDevolucao] =
+    useState("");
+
+  const [mensagemDevolucaoCodigo, setMensagemDevolucaoCodigo] =
+    useState("");
+
   const [dataEmprestimo, setDataEmprestimo] = useState(hoje());
   const [dataPrevista, setDataPrevista] = useState(daquiADias(14));
 
@@ -69,6 +85,7 @@ function Emprestimos() {
       const registrosLivros = await db.select<LivroBanco[]>(`
         SELECT
           codigo,
+          codigo_barras,
           titulo,
           autor,
           espirito,
@@ -86,6 +103,7 @@ function Emprestimos() {
       setLivros(
         registrosLivros.map((livro) => ({
           codigo: livro.codigo,
+          codigo_barras: livro.codigo_barras ?? "",
           titulo: livro.titulo,
           autor: livro.autor,
           espirito: livro.espirito ?? "",
@@ -107,6 +125,8 @@ function Emprestimos() {
   function abrirNovoEmprestimo() {
     setPessoaId("");
     setLivroCodigo("");
+    setCodigoBarrasEmprestimo("");
+    setMensagemCodigoBarras("");
     setDataEmprestimo(hoje());
     setDataPrevista(daquiADias(14));
     setMostrarFormulario(true);
@@ -116,6 +136,172 @@ function Emprestimos() {
     setMostrarFormulario(false);
     setPessoaId("");
     setLivroCodigo("");
+    setCodigoBarrasEmprestimo("");
+    setMensagemCodigoBarras("");
+  }
+
+  function abrirDevolucaoPorCodigo() {
+    setCodigoBarrasDevolucao("");
+    setMensagemDevolucaoCodigo("");
+    setMostrarDevolucaoCodigo(true);
+  }
+
+  function fecharDevolucaoPorCodigo() {
+    setMostrarDevolucaoCodigo(false);
+    setCodigoBarrasDevolucao("");
+    setMensagemDevolucaoCodigo("");
+  }
+
+  async function localizarLivroPorCodigoBarras() {
+    const codigo = codigoBarrasEmprestimo.trim();
+
+    setMensagemCodigoBarras("");
+    setLivroCodigo("");
+
+    if (!codigo) {
+      setMensagemCodigoBarras(
+        "Digite ou passe um código de barras no leitor."
+      );
+      return;
+    }
+
+    try {
+      const db = await obterBanco();
+
+      const resultado = await db.select<LivroBanco[]>(
+        `
+          SELECT
+            codigo,
+            codigo_barras,
+            titulo,
+            autor,
+            espirito,
+            medium,
+            editora,
+            observacao,
+            disponivel
+          FROM livros
+          WHERE codigo_barras = $1
+          LIMIT 1
+        `,
+        [codigo]
+      );
+
+      if (resultado.length === 0) {
+        setMensagemCodigoBarras(
+          "Nenhum livro foi encontrado com este código de barras."
+        );
+        return;
+      }
+
+      const livro = resultado[0];
+
+      if (livro.disponivel !== 1) {
+        setMensagemCodigoBarras(
+          `O livro "${livro.titulo}" já está emprestado.`
+        );
+        return;
+      }
+
+      setLivroCodigo(livro.codigo);
+
+      setMensagemCodigoBarras(
+        `Livro localizado: ${livro.codigo} — ${livro.titulo}`
+      );
+    } catch (erro) {
+      console.error(
+        "Erro ao localizar livro pelo código de barras:",
+        erro
+      );
+
+      setMensagemCodigoBarras(
+        "Não foi possível localizar o livro pelo código de barras."
+      );
+    }
+  }
+
+  async function localizarEmprestimoPorCodigoBarras() {
+    const codigo = codigoBarrasDevolucao.trim();
+
+    setMensagemDevolucaoCodigo("");
+
+    if (!codigo) {
+      setMensagemDevolucaoCodigo(
+        "Digite ou passe um código de barras no leitor."
+      );
+      return;
+    }
+
+    try {
+      const db = await obterBanco();
+
+      const livroEncontrado = await db.select<
+        { codigo: string; titulo: string }[]
+      >(
+        `
+          SELECT codigo, titulo
+          FROM livros
+          WHERE codigo_barras = $1
+          LIMIT 1
+        `,
+        [codigo]
+      );
+
+      if (livroEncontrado.length === 0) {
+        setMensagemDevolucaoCodigo(
+          "Nenhum livro foi encontrado com este código de barras."
+        );
+        return;
+      }
+
+      const resultado = await db.select<Emprestimo[]>(
+        `
+          SELECT
+            e.id,
+            e.pessoa_id,
+            p.nome AS pessoa_nome,
+            e.livro_codigo,
+            l.titulo AS livro_titulo,
+            e.data_emprestimo,
+            e.data_prevista,
+            e.data_devolucao
+          FROM emprestimos e
+          INNER JOIN pessoas p
+            ON p.id = e.pessoa_id
+          INNER JOIN livros l
+            ON l.codigo = e.livro_codigo
+          WHERE l.codigo_barras = $1
+            AND e.data_devolucao IS NULL
+          ORDER BY e.id DESC
+          LIMIT 1
+        `,
+        [codigo]
+      );
+
+      if (resultado.length === 0) {
+        setMensagemDevolucaoCodigo(
+          `O livro "${livroEncontrado[0].titulo}" não possui empréstimo ativo.`
+        );
+        return;
+      }
+
+      const emprestimo = resultado[0];
+
+      setMensagemDevolucaoCodigo(
+        `Livro localizado: ${emprestimo.livro_titulo} — emprestado para ${emprestimo.pessoa_nome}.`
+      );
+
+      setEmprestimoParaDevolver(emprestimo);
+    } catch (erro) {
+      console.error(
+        "Erro ao localizar empréstimo pelo código de barras:",
+        erro
+      );
+
+      setMensagemDevolucaoCodigo(
+        "Não foi possível localizar o empréstimo."
+      );
+    }
   }
 
   async function salvarEmprestimo() {
@@ -242,6 +428,10 @@ function Emprestimos() {
       }
 
       setEmprestimoParaDevolver(null);
+      setMostrarDevolucaoCodigo(false);
+      setCodigoBarrasDevolucao("");
+      setMensagemDevolucaoCodigo("");
+
       await carregarDados();
     } catch (erro) {
       console.error("Erro ao devolver livro:", erro);
@@ -261,6 +451,10 @@ function Emprestimos() {
 
   const livrosDisponiveis = livros.filter((livro) => livro.disponivel);
 
+  const livroSelecionado = livros.find(
+    (livro) => livro.codigo === livroCodigo
+  );
+
   function estaAtrasado(emprestimo: Emprestimo) {
     return (
       emprestimo.data_devolucao === null &&
@@ -271,7 +465,16 @@ function Emprestimos() {
   return (
     <>
       <section className="acoes">
-        <button onClick={abrirNovoEmprestimo}>+ Novo empréstimo</button>
+        <button onClick={abrirNovoEmprestimo}>
+          + Novo empréstimo
+        </button>
+
+        <button
+          className="botao-secundario"
+          onClick={abrirDevolucaoPorCodigo}
+        >
+          Devolver por código de barras
+        </button>
 
         <button
           className="botao-secundario"
@@ -293,6 +496,40 @@ function Emprestimos() {
 
           <div className="campos campos-emprestimo">
             <label>
+              Código de barras
+              <input
+                value={codigoBarrasEmprestimo}
+                onChange={(e) =>
+                  setCodigoBarrasEmprestimo(e.target.value)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    localizarLivroPorCodigoBarras();
+                  }
+                }}
+                placeholder="Digite ou passe o livro no leitor"
+                autoComplete="off"
+                autoFocus
+              />
+            </label>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "end",
+              }}
+            >
+              <button
+                type="button"
+                className="botao-secundario"
+                onClick={localizarLivroPorCodigoBarras}
+              >
+                Localizar livro
+              </button>
+            </div>
+
+            <label>
               Leitor
               <select
                 value={pessoaId}
@@ -312,7 +549,10 @@ function Emprestimos() {
               Livro
               <select
                 value={livroCodigo}
-                onChange={(e) => setLivroCodigo(e.target.value)}
+                onChange={(e) => {
+                  setLivroCodigo(e.target.value);
+                  setMensagemCodigoBarras("");
+                }}
               >
                 <option value="">Selecione...</option>
 
@@ -343,8 +583,41 @@ function Emprestimos() {
             </label>
           </div>
 
+          {mensagemCodigoBarras && (
+            <div className="resumo-devolucao">
+              <span>{mensagemCodigoBarras}</span>
+            </div>
+          )}
+
+          {livroSelecionado && (
+            <div className="resumo-devolucao">
+              <strong>{livroSelecionado.titulo}</strong>
+
+              <span>
+                Código interno: {livroSelecionado.codigo}
+              </span>
+
+              <span>
+                Código de barras:{" "}
+                {livroSelecionado.codigo_barras || "—"}
+              </span>
+
+              <span>Autor: {livroSelecionado.autor}</span>
+
+              <span>
+                Situação:{" "}
+                {livroSelecionado.disponivel
+                  ? "Disponível"
+                  : "Emprestado"}
+              </span>
+            </div>
+          )}
+
           <div className="formulario-acoes">
-            <button className="cancelar" onClick={fecharFormulario}>
+            <button
+              className="cancelar"
+              onClick={fecharFormulario}
+            >
               Cancelar
             </button>
 
@@ -352,6 +625,63 @@ function Emprestimos() {
               Confirmar empréstimo
             </button>
           </div>
+        </section>
+      )}
+
+      {mostrarDevolucaoCodigo && (
+        <section className="formulario">
+          <div className="formulario-topo">
+            <h2>Devolver por código de barras</h2>
+
+            <button
+              className="fechar"
+              onClick={fecharDevolucaoPorCodigo}
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="campos">
+            <label>
+              Código de barras
+              <input
+                value={codigoBarrasDevolucao}
+                onChange={(e) =>
+                  setCodigoBarrasDevolucao(e.target.value)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    localizarEmprestimoPorCodigoBarras();
+                  }
+                }}
+                placeholder="Digite ou passe o livro no leitor"
+                autoComplete="off"
+                autoFocus
+              />
+            </label>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "end",
+              }}
+            >
+              <button
+                type="button"
+                className="botao-secundario"
+                onClick={localizarEmprestimoPorCodigoBarras}
+              >
+                Localizar empréstimo
+              </button>
+            </div>
+          </div>
+
+          {mensagemDevolucaoCodigo && (
+            <div className="resumo-devolucao">
+              <span>{mensagemDevolucaoCodigo}</span>
+            </div>
+          )}
         </section>
       )}
 
@@ -379,7 +709,9 @@ function Emprestimos() {
           <tbody>
             {ativos.length === 0 ? (
               <tr>
-                <td colSpan={6}>Nenhum empréstimo em aberto.</td>
+                <td colSpan={6}>
+                  Nenhum empréstimo em aberto.
+                </td>
               </tr>
             ) : (
               ativos.map((emprestimo) => {
@@ -394,23 +726,34 @@ function Emprestimos() {
                       {emprestimo.livro_titulo}
                     </td>
 
-                    <td>{formatarData(emprestimo.data_emprestimo)}</td>
-                    <td>{formatarData(emprestimo.data_prevista)}</td>
+                    <td>
+                      {formatarData(emprestimo.data_emprestimo)}
+                    </td>
+
+                    <td>
+                      {formatarData(emprestimo.data_prevista)}
+                    </td>
 
                     <td>
                       <span
                         className={
-                          atrasado ? "status-atrasado" : "emprestado"
+                          atrasado
+                            ? "status-atrasado"
+                            : "emprestado"
                         }
                       >
-                        {atrasado ? "Atrasado" : "Emprestado"}
+                        {atrasado
+                          ? "Atrasado"
+                          : "Emprestado"}
                       </span>
                     </td>
 
                     <td>
                       <button
                         className="botao-devolver"
-                        onClick={() => solicitarDevolucao(emprestimo)}
+                        onClick={() =>
+                          solicitarDevolucao(emprestimo)
+                        }
                       >
                         Devolver
                       </button>
@@ -441,7 +784,9 @@ function Emprestimos() {
             <tbody>
               {historico.length === 0 ? (
                 <tr>
-                  <td colSpan={5}>Nenhuma devolução registrada.</td>
+                  <td colSpan={5}>
+                    Nenhuma devolução registrada.
+                  </td>
                 </tr>
               ) : (
                 historico.map((emprestimo) => (
@@ -453,9 +798,17 @@ function Emprestimos() {
                       {emprestimo.livro_titulo}
                     </td>
 
-                    <td>{formatarData(emprestimo.data_emprestimo)}</td>
-                    <td>{formatarData(emprestimo.data_prevista)}</td>
-                    <td>{formatarData(emprestimo.data_devolucao)}</td>
+                    <td>
+                      {formatarData(emprestimo.data_emprestimo)}
+                    </td>
+
+                    <td>
+                      {formatarData(emprestimo.data_prevista)}
+                    </td>
+
+                    <td>
+                      {formatarData(emprestimo.data_devolucao)}
+                    </td>
                   </tr>
                 ))
               )}
@@ -472,14 +825,18 @@ function Emprestimos() {
             <p>Você está registrando a devolução de:</p>
 
             <div className="resumo-devolucao">
-              <strong>{emprestimoParaDevolver.livro_titulo}</strong>
+              <strong>
+                {emprestimoParaDevolver.livro_titulo}
+              </strong>
 
               <span>
-                Código: {emprestimoParaDevolver.livro_codigo}
+                Código:{" "}
+                {emprestimoParaDevolver.livro_codigo}
               </span>
 
               <span>
-                Leitor: {emprestimoParaDevolver.pessoa_nome}
+                Leitor:{" "}
+                {emprestimoParaDevolver.pessoa_nome}
               </span>
 
               <span>
@@ -488,8 +845,8 @@ function Emprestimos() {
             </div>
 
             <p>
-              Após confirmar, o livro ficará disponível novamente para
-              empréstimo.
+              Após confirmar, o livro ficará disponível
+              novamente para empréstimo.
             </p>
 
             <div className="modal-acoes">
@@ -506,7 +863,9 @@ function Emprestimos() {
                 onClick={confirmarDevolucao}
                 disabled={devolvendo}
               >
-                {devolvendo ? "Registrando..." : "Confirmar devolução"}
+                {devolvendo
+                  ? "Registrando..."
+                  : "Confirmar devolução"}
               </button>
             </div>
           </div>

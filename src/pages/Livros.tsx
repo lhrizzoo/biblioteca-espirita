@@ -8,6 +8,7 @@ import type { Livro, LivroBanco } from "../types";
 
 type LivroImportacao = {
   codigo: string;
+  codigo_barras: string;
   titulo: string;
   autor: string;
   espirito: string;
@@ -60,6 +61,7 @@ function Livros() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
   const [codigo, setCodigo] = useState("");
+  const [codigoBarras, setCodigoBarras] = useState("");
   const [titulo, setTitulo] = useState("");
   const [autor, setAutor] = useState("");
   const [espirito, setEspirito] = useState("");
@@ -88,6 +90,7 @@ function Livros() {
       const registros = await db.select<LivroBanco[]>(`
         SELECT
           codigo,
+          codigo_barras,
           titulo,
           autor,
           espirito,
@@ -102,6 +105,7 @@ function Livros() {
       setLivros(
         registros.map((livro) => ({
           codigo: livro.codigo,
+          codigo_barras: livro.codigo_barras ?? "",
           titulo: livro.titulo,
           autor: livro.autor,
           espirito: livro.espirito ?? "",
@@ -122,6 +126,7 @@ function Livros() {
 
   function limparFormulario() {
     setCodigo("");
+    setCodigoBarras("");
     setTitulo("");
     setAutor("");
     setEspirito("");
@@ -139,6 +144,7 @@ function Livros() {
   function abrirEdicao(livro: Livro) {
     setCodigoOriginal(livro.codigo);
     setCodigo(livro.codigo);
+    setCodigoBarras(livro.codigo_barras);
     setTitulo(livro.titulo);
     setAutor(livro.autor);
     setEspirito(livro.espirito);
@@ -162,22 +168,62 @@ function Livros() {
     try {
       const db = await obterBanco();
 
+      const codigoBarrasLimpo = codigoBarras.trim();
+
+      if (codigoBarrasLimpo) {
+        const parametros = editando
+          ? [codigoBarrasLimpo, codigoOriginal]
+          : [codigoBarrasLimpo];
+
+        const consulta = editando
+          ? `
+              SELECT codigo
+              FROM livros
+              WHERE codigo_barras = $1
+                AND codigo <> $2
+              LIMIT 1
+            `
+          : `
+              SELECT codigo
+              FROM livros
+              WHERE codigo_barras = $1
+              LIMIT 1
+            `;
+
+        const duplicado = await db.select<{ codigo: string }[]>(
+          consulta,
+          parametros
+        );
+
+        if (duplicado.length > 0) {
+          alert(
+            "Este código de barras já está cadastrado em outro livro."
+          );
+          return;
+        }
+      }
+
+      const codigoBarrasBanco =
+        codigoBarrasLimpo.length > 0 ? codigoBarrasLimpo : null;
+
       if (editando) {
         await db.execute(
           `
             UPDATE livros
             SET
               codigo = $1,
-              titulo = $2,
-              autor = $3,
-              espirito = $4,
-              medium = $5,
-              editora = $6,
-              observacao = $7
-            WHERE codigo = $8
+              codigo_barras = $2,
+              titulo = $3,
+              autor = $4,
+              espirito = $5,
+              medium = $6,
+              editora = $7,
+              observacao = $8
+            WHERE codigo = $9
           `,
           [
             codigo.trim(),
+            codigoBarrasBanco,
             titulo.trim(),
             autor.trim(),
             espirito.trim(),
@@ -192,6 +238,7 @@ function Livros() {
           `
             INSERT INTO livros (
               codigo,
+              codigo_barras,
               titulo,
               autor,
               espirito,
@@ -200,10 +247,11 @@ function Livros() {
               observacao,
               disponivel
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 1)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
           `,
           [
             codigo.trim(),
+            codigoBarrasBanco,
             titulo.trim(),
             autor.trim(),
             espirito.trim(),
@@ -220,7 +268,7 @@ function Livros() {
       console.error("Erro ao salvar livro:", erro);
 
       alert(
-        "Não foi possível salvar o livro. Verifique se o código já está sendo utilizado."
+        "Não foi possível salvar o livro. Verifique se o código ou o código de barras já está sendo utilizado."
       );
     }
   }
@@ -264,7 +312,14 @@ function Livros() {
         livros.map((livro) => livro.codigo.trim().toLowerCase())
       );
 
+      const barrasExistentes = new Set(
+        livros
+          .map((livro) => livro.codigo_barras.trim())
+          .filter(Boolean)
+      );
+
       const codigosDoArquivo = new Set<string>();
+      const barrasDoArquivo = new Set<string>();
 
       const preparados: LivroImportacao[] = resultado.data.map(
         (linha) => {
@@ -272,6 +327,15 @@ function Livros() {
             "codigo",
             "código",
             "cod",
+          ]);
+
+          const codigoBarrasLinha = encontrarValor(linha, [
+            "codigo de barras",
+            "código de barras",
+            "codigobarras",
+            "códigobarras",
+            "barcode",
+            "ean",
           ]);
 
           const tituloLinha = encontrarValor(linha, [
@@ -335,12 +399,35 @@ function Livros() {
             motivo = "Código repetido no arquivo";
           }
 
+          if (
+            valido &&
+            codigoBarrasLinha &&
+            barrasExistentes.has(codigoBarrasLinha)
+          ) {
+            valido = false;
+            motivo = "Código de barras já existe no acervo";
+          }
+
+          if (
+            valido &&
+            codigoBarrasLinha &&
+            barrasDoArquivo.has(codigoBarrasLinha)
+          ) {
+            valido = false;
+            motivo = "Código de barras repetido no arquivo";
+          }
+
           if (codigoLinha) {
             codigosDoArquivo.add(codigoNormalizado);
           }
 
+          if (codigoBarrasLinha) {
+            barrasDoArquivo.add(codigoBarrasLinha);
+          }
+
           return {
             codigo: codigoLinha,
+            codigo_barras: codigoBarrasLinha,
             titulo: tituloLinha,
             autor: autorLinha,
             espirito: espiritoLinha,
@@ -404,10 +491,16 @@ function Livros() {
 
       try {
         for (const livro of validos) {
+          const codigoBarrasBanco =
+            livro.codigo_barras.trim().length > 0
+              ? livro.codigo_barras.trim()
+              : null;
+
           await db.execute(
             `
               INSERT INTO livros (
                 codigo,
+                codigo_barras,
                 titulo,
                 autor,
                 espirito,
@@ -416,10 +509,11 @@ function Livros() {
                 observacao,
                 disponivel
               )
-              VALUES ($1, $2, $3, $4, $5, $6, $7, 1)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
             `,
             [
               livro.codigo.trim(),
+              codigoBarrasBanco,
               livro.titulo.trim(),
               livro.autor.trim(),
               livro.espirito.trim(),
@@ -482,6 +576,7 @@ function Livros() {
 
     return (
       livro.codigo.toLowerCase().includes(termo) ||
+      livro.codigo_barras.toLowerCase().includes(termo) ||
       livro.titulo.toLowerCase().includes(termo) ||
       livro.autor.toLowerCase().includes(termo) ||
       livro.espirito.toLowerCase().includes(termo) ||
@@ -541,6 +636,16 @@ function Livros() {
                 value={codigo}
                 onChange={(e) => setCodigo(e.target.value)}
                 placeholder="Ex.: 003"
+              />
+            </label>
+
+            <label>
+              Código de barras
+              <input
+                value={codigoBarras}
+                onChange={(e) => setCodigoBarras(e.target.value)}
+                placeholder="Digite ou passe o livro no leitor"
+                autoComplete="off"
               />
             </label>
 
@@ -620,7 +725,8 @@ function Livros() {
         <input
           value={pesquisa}
           onChange={(e) => setPesquisa(e.target.value)}
-          placeholder="Pesquisar por código, título, autor, espírito, médium, editora ou observação..."
+          placeholder="Pesquisar por código, código de barras, título, autor, espírito, médium ou editora..."
+          autoComplete="off"
         />
       </section>
 
@@ -631,6 +737,7 @@ function Livros() {
           <thead>
             <tr>
               <th>Código</th>
+              <th>Cód. barras</th>
               <th>Livro</th>
               <th>Autor</th>
               <th>Espírito</th>
@@ -645,7 +752,7 @@ function Livros() {
           <tbody>
             {livrosFiltrados.length === 0 ? (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={10}>
                   {pesquisa.trim()
                     ? "Nenhum livro encontrado."
                     : "Nenhum livro cadastrado."}
@@ -668,7 +775,7 @@ function Livros() {
         <div className="modal-fundo">
           <div
             className="modal"
-            style={{ maxWidth: "1000px" }}
+            style={{ maxWidth: "1100px" }}
           >
             <h2>Importar livros</h2>
 
@@ -695,6 +802,7 @@ function Livros() {
                 <thead>
                   <tr>
                     <th>Código</th>
+                    <th>Cód. barras</th>
                     <th>Título</th>
                     <th>Autor</th>
                     <th>Espírito</th>
@@ -708,6 +816,7 @@ function Livros() {
                   {livrosImportacao.map((livro, indice) => (
                     <tr key={`${livro.codigo}-${indice}`}>
                       <td>{livro.codigo || "—"}</td>
+                      <td>{livro.codigo_barras || "—"}</td>
                       <td>{livro.titulo || "—"}</td>
                       <td>{livro.autor || "—"}</td>
                       <td>{livro.espirito || "—"}</td>
@@ -820,6 +929,7 @@ function LinhaLivro({
   return (
     <tr>
       <td>{livro.codigo}</td>
+      <td>{livro.codigo_barras || "—"}</td>
       <td>{livro.titulo}</td>
       <td>{livro.autor}</td>
       <td>{livro.espirito || "—"}</td>

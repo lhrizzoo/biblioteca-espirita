@@ -38,6 +38,7 @@ export async function iniciarBanco() {
     CREATE TABLE IF NOT EXISTS livros (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       codigo TEXT NOT NULL UNIQUE,
+      codigo_barras TEXT,
       titulo TEXT NOT NULL,
       autor TEXT NOT NULL,
       espirito TEXT NOT NULL DEFAULT '',
@@ -47,6 +48,13 @@ export async function iniciarBanco() {
       disponivel INTEGER NOT NULL DEFAULT 1
     )
   `);
+
+  await adicionarColunaSeNecessario(
+    db,
+    "livros",
+    "codigo_barras",
+    "TEXT"
+  );
 
   await adicionarColunaSeNecessario(
     db,
@@ -75,6 +83,13 @@ export async function iniciarBanco() {
     "observacao",
     "TEXT NOT NULL DEFAULT ''"
   );
+
+  await db.execute(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_livros_codigo_barras_unico
+    ON livros(codigo_barras)
+    WHERE codigo_barras IS NOT NULL
+      AND TRIM(codigo_barras) <> ''
+  `);
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS pessoas (
