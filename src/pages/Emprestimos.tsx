@@ -32,6 +32,12 @@ type LivroApagadoDevolvido = {
   titulo: string;
 };
 
+type FiltroStatus =
+  | "todos"
+  | "pendente"
+  | "atrasado"
+  | "devolvido";
+
 function Emprestimos() {
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>([]);
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
@@ -59,6 +65,8 @@ function Emprestimos() {
     useState("");
 
   const [busca, setBusca] = useState("");
+  const [filtroStatus, setFiltroStatus] =
+    useState<FiltroStatus>("todos");
 
   const [dataEmprestimo, setDataEmprestimo] = useState(hoje());
   const [dataPrevista, setDataPrevista] = useState(daquiADias(14));
@@ -326,7 +334,12 @@ function Emprestimos() {
   }
 
   async function salvarEmprestimo() {
-    if (!pessoaId || !livroCodigo || !dataEmprestimo || !dataPrevista) {
+    if (
+      !pessoaId ||
+      !livroCodigo ||
+      !dataEmprestimo ||
+      !dataPrevista
+    ) {
       alert("Preencha todos os dados do empréstimo.");
       return;
     }
@@ -351,7 +364,9 @@ function Emprestimos() {
         [Number(pessoaId)]
       );
 
-      const totalAtivos = Number(quantidadeAtivos[0]?.total ?? 0);
+      const totalAtivos = Number(
+        quantidadeAtivos[0]?.total ?? 0
+      );
 
       if (totalAtivos >= 2) {
         alert(
@@ -376,7 +391,9 @@ function Emprestimos() {
         disponibilidade[0].disponivel !== 1 ||
         disponibilidade[0].ativo !== 1
       ) {
-        alert("Este livro não está disponível para empréstimo.");
+        alert(
+          "Este livro não está disponível para empréstimo."
+        );
         await carregarDados();
         return;
       }
@@ -420,12 +437,19 @@ function Emprestimos() {
       fecharFormulario();
       await carregarDados();
     } catch (erro) {
-      console.error("Erro ao registrar empréstimo:", erro);
-      alert("Não foi possível registrar o empréstimo.");
+      console.error(
+        "Erro ao registrar empréstimo:",
+        erro
+      );
+      alert(
+        "Não foi possível registrar o empréstimo."
+      );
     }
   }
 
-  function solicitarDevolucao(emprestimo: Emprestimo) {
+  function solicitarDevolucao(
+    emprestimo: Emprestimo
+  ) {
     setEmprestimoParaDevolver(emprestimo);
   }
 
@@ -436,7 +460,12 @@ function Emprestimos() {
   }
 
   async function confirmarDevolucao() {
-    if (!emprestimoParaDevolver || devolvendo) return;
+    if (
+      !emprestimoParaDevolver ||
+      devolvendo
+    ) {
+      return;
+    }
 
     setDevolvendo(true);
 
@@ -456,11 +485,14 @@ function Emprestimos() {
       );
 
       if (livro.length === 0) {
-        alert("O livro deste empréstimo não foi encontrado.");
+        alert(
+          "O livro deste empréstimo não foi encontrado."
+        );
         return;
       }
 
-      const livroEstavaApagado = livro[0].ativo !== 1;
+      const livroEstavaApagado =
+        livro[0].ativo !== 1;
 
       await db.execute("BEGIN TRANSACTION");
 
@@ -472,7 +504,10 @@ function Emprestimos() {
             WHERE id = $2
               AND data_devolucao IS NULL
           `,
-          [hoje(), emprestimoParaDevolver.id]
+          [
+            hoje(),
+            emprestimoParaDevolver.id,
+          ]
         );
 
         if (livroEstavaApagado) {
@@ -482,7 +517,9 @@ function Emprestimos() {
               SET disponivel = 0
               WHERE codigo = $1
             `,
-            [emprestimoParaDevolver.livro_codigo]
+            [
+              emprestimoParaDevolver.livro_codigo,
+            ]
           );
         } else {
           await db.execute(
@@ -491,7 +528,9 @@ function Emprestimos() {
               SET disponivel = 1
               WHERE codigo = $1
             `,
-            [emprestimoParaDevolver.livro_codigo]
+            [
+              emprestimoParaDevolver.livro_codigo,
+            ]
           );
         }
 
@@ -501,8 +540,11 @@ function Emprestimos() {
         throw erro;
       }
 
-      const codigoLivro = emprestimoParaDevolver.livro_codigo;
-      const tituloLivro = emprestimoParaDevolver.livro_titulo;
+      const codigoLivro =
+        emprestimoParaDevolver.livro_codigo;
+
+      const tituloLivro =
+        emprestimoParaDevolver.livro_titulo;
 
       setEmprestimoParaDevolver(null);
       setMostrarDevolucaoCodigo(false);
@@ -518,15 +560,24 @@ function Emprestimos() {
         });
       }
     } catch (erro) {
-      console.error("Erro ao devolver livro:", erro);
-      alert("Não foi possível registrar a devolução.");
+      console.error(
+        "Erro ao devolver livro:",
+        erro
+      );
+
+      alert(
+        "Não foi possível registrar a devolução."
+      );
     } finally {
       setDevolvendo(false);
     }
   }
 
   async function retornarLivroAoEstoque() {
-    if (!livroApagadoDevolvido || restaurandoLivro) {
+    if (
+      !livroApagadoDevolvido ||
+      restaurandoLivro
+    ) {
       return;
     }
 
@@ -549,7 +600,10 @@ function Emprestimos() {
 
       await carregarDados();
     } catch (erro) {
-      console.error("Erro ao retornar livro ao estoque:", erro);
+      console.error(
+        "Erro ao retornar livro ao estoque:",
+        erro
+      );
 
       alert(
         "Não foi possível retornar o livro ao estoque."
@@ -567,49 +621,103 @@ function Emprestimos() {
     setLivroApagadoDevolvido(null);
   }
 
-  function correspondeBusca(emprestimo: Emprestimo) {
-    const termo = normalizarTexto(busca);
-
-    if (!termo) return true;
-
-    return (
-      normalizarTexto(emprestimo.pessoa_nome).includes(termo) ||
-      normalizarTexto(emprestimo.livro_codigo).includes(termo) ||
-      normalizarTexto(emprestimo.livro_titulo).includes(termo)
-    );
-  }
-
-  const ativos = emprestimos.filter(
-    (emprestimo) =>
-      emprestimo.data_devolucao === null &&
-      correspondeBusca(emprestimo)
-  );
-
-  const historico = emprestimos.filter(
-    (emprestimo) =>
-      emprestimo.data_devolucao !== null &&
-      correspondeBusca(emprestimo)
-  );
-
-  const livrosDisponiveis = livros.filter(
-    (livro) => livro.disponivel
-  );
-
-  const livroSelecionado = livros.find(
-    (livro) => livro.codigo === livroCodigo
-  );
-
-  function estaAtrasado(emprestimo: Emprestimo) {
+  function estaAtrasado(
+    emprestimo: Emprestimo
+  ) {
     return (
       emprestimo.data_devolucao === null &&
       emprestimo.data_prevista < hoje()
     );
   }
 
+  function correspondeBusca(
+    emprestimo: Emprestimo
+  ) {
+    const termo = normalizarTexto(busca);
+
+    if (!termo) {
+      return true;
+    }
+
+    return (
+      normalizarTexto(
+        emprestimo.pessoa_nome
+      ).includes(termo) ||
+      normalizarTexto(
+        emprestimo.livro_codigo
+      ).includes(termo) ||
+      normalizarTexto(
+        emprestimo.livro_titulo
+      ).includes(termo)
+    );
+  }
+
+  function correspondeStatus(
+    emprestimo: Emprestimo
+  ) {
+    if (filtroStatus === "todos") {
+      return true;
+    }
+
+    if (filtroStatus === "pendente") {
+      return emprestimo.data_devolucao === null;
+    }
+
+    if (filtroStatus === "atrasado") {
+      return estaAtrasado(emprestimo);
+    }
+
+    if (filtroStatus === "devolvido") {
+      return emprestimo.data_devolucao !== null;
+    }
+
+    return true;
+  }
+
+  const emprestimosFiltrados =
+    emprestimos.filter(
+      (emprestimo) =>
+        correspondeBusca(emprestimo) &&
+        correspondeStatus(emprestimo)
+    );
+
+  const ativos =
+    emprestimosFiltrados.filter(
+      (emprestimo) =>
+        emprestimo.data_devolucao === null
+    );
+
+  const historico =
+    emprestimosFiltrados.filter(
+      (emprestimo) =>
+        emprestimo.data_devolucao !== null
+    );
+
+  const livrosDisponiveis =
+    livros.filter(
+      (livro) => livro.disponivel
+    );
+
+  const livroSelecionado =
+    livros.find(
+      (livro) =>
+        livro.codigo === livroCodigo
+    );
+
+  const mostrarSecaoAbertos =
+    filtroStatus !== "devolvido";
+
+  const mostrarSecaoHistorico =
+    filtroStatus === "devolvido" ||
+    (filtroStatus === "todos" &&
+      mostrarHistorico);
+
   return (
     <>
       <section className="acoes">
-        <button onClick={abrirNovoEmprestimo}>
+        <button
+          onClick={abrirNovoEmprestimo}
+        >
           + Novo empréstimo
         </button>
 
@@ -622,32 +730,99 @@ function Emprestimos() {
 
         <button
           className="botao-secundario"
-          onClick={() => setMostrarHistorico(!mostrarHistorico)}
+          onClick={() =>
+            setMostrarHistorico(
+              !mostrarHistorico
+            )
+          }
         >
-          {mostrarHistorico ? "Ocultar histórico" : "Ver histórico"}
+          {mostrarHistorico
+            ? "Ocultar histórico"
+            : "Ver histórico"}
         </button>
       </section>
 
       <section
         style={{
           marginBottom: "20px",
+          display: "flex",
+          gap: "12px",
+          flexWrap: "wrap",
+          alignItems: "end",
         }}
       >
-        <input
-          type="search"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por leitor, código ou título do livro..."
-          autoComplete="off"
+        <label
           style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "6px",
             width: "100%",
             maxWidth: "520px",
-            padding: "11px 12px",
-            border: "1px solid #d1d5db",
-            borderRadius: "8px",
-            fontSize: "14px",
           }}
-        />
+        >
+          Buscar
+          <input
+            type="search"
+            value={busca}
+            onChange={(e) =>
+              setBusca(e.target.value)
+            }
+            placeholder="Buscar por leitor, código ou título do livro..."
+            autoComplete="off"
+            style={{
+              width: "100%",
+              padding: "11px 12px",
+              border:
+                "1px solid #d1d5db",
+              borderRadius: "8px",
+              fontSize: "14px",
+            }}
+          />
+        </label>
+
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "6px",
+            minWidth: "220px",
+          }}
+        >
+          Status
+          <select
+            value={filtroStatus}
+            onChange={(e) =>
+              setFiltroStatus(
+                e.target
+                  .value as FiltroStatus
+              )
+            }
+            style={{
+              padding: "11px 12px",
+              border:
+                "1px solid #d1d5db",
+              borderRadius: "8px",
+              fontSize: "14px",
+              background: "white",
+            }}
+          >
+            <option value="todos">
+              Todos
+            </option>
+
+            <option value="pendente">
+              Pendente de devolução
+            </option>
+
+            <option value="atrasado">
+              Atrasado
+            </option>
+
+            <option value="devolvido">
+              Devolvido
+            </option>
+          </select>
+        </label>
       </section>
 
       {mostrarFormulario && (
@@ -655,7 +830,10 @@ function Emprestimos() {
           <div className="formulario-topo">
             <h2>Novo empréstimo</h2>
 
-            <button className="fechar" onClick={fecharFormulario}>
+            <button
+              className="fechar"
+              onClick={fecharFormulario}
+            >
               ×
             </button>
           </div>
@@ -663,13 +841,20 @@ function Emprestimos() {
           <div className="campos campos-emprestimo">
             <label>
               Código de barras
+
               <input
-                value={codigoBarrasEmprestimo}
+                value={
+                  codigoBarrasEmprestimo
+                }
                 onChange={(e) =>
-                  setCodigoBarrasEmprestimo(e.target.value)
+                  setCodigoBarrasEmprestimo(
+                    e.target.value
+                  )
                 }
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (
+                    e.key === "Enter"
+                  ) {
                     e.preventDefault();
                     localizarLivroPorCodigoBarras();
                   }
@@ -689,7 +874,9 @@ function Emprestimos() {
               <button
                 type="button"
                 className="botao-secundario"
-                onClick={localizarLivroPorCodigoBarras}
+                onClick={
+                  localizarLivroPorCodigoBarras
+                }
               >
                 Localizar livro
               </button>
@@ -697,57 +884,89 @@ function Emprestimos() {
 
             <label>
               Leitor
+
               <select
                 value={pessoaId}
-                onChange={(e) => setPessoaId(e.target.value)}
+                onChange={(e) =>
+                  setPessoaId(
+                    e.target.value
+                  )
+                }
               >
-                <option value="">Selecione...</option>
+                <option value="">
+                  Selecione...
+                </option>
 
-                {pessoas.map((pessoa) => (
-                  <option key={pessoa.id} value={pessoa.id}>
-                    {pessoa.nome}
-                  </option>
-                ))}
+                {pessoas.map(
+                  (pessoa) => (
+                    <option
+                      key={pessoa.id}
+                      value={pessoa.id}
+                    >
+                      {pessoa.nome}
+                    </option>
+                  )
+                )}
               </select>
             </label>
 
             <label>
               Livro
+
               <select
                 value={livroCodigo}
                 onChange={(e) => {
-                  setLivroCodigo(e.target.value);
-                  setMensagemCodigoBarras("");
+                  setLivroCodigo(
+                    e.target.value
+                  );
+
+                  setMensagemCodigoBarras(
+                    ""
+                  );
                 }}
               >
-                <option value="">Selecione...</option>
+                <option value="">
+                  Selecione...
+                </option>
 
-                {livrosDisponiveis.map((livro) => (
-                  <option key={livro.codigo} value={livro.codigo}>
-                    {livro.codigo} — {livro.titulo}
-                  </option>
-                ))}
+                {livrosDisponiveis.map(
+                  (livro) => (
+                    <option
+                      key={livro.codigo}
+                      value={livro.codigo}
+                    >
+                      {livro.codigo} —{" "}
+                      {livro.titulo}
+                    </option>
+                  )
+                )}
               </select>
             </label>
 
             <label>
               Data do empréstimo
+
               <input
                 type="date"
                 value={dataEmprestimo}
                 onChange={(e) =>
-                  setDataEmprestimo(e.target.value)
+                  setDataEmprestimo(
+                    e.target.value
+                  )
                 }
               />
             </label>
 
             <label>
               Previsão de devolução
+
               <input
                 type="date"
                 value={dataPrevista}
                 onChange={(e) =>
-                  setDataPrevista(e.target.value)
+                  setDataPrevista(
+                    e.target.value
+                  )
                 }
               />
             </label>
@@ -755,25 +974,36 @@ function Emprestimos() {
 
           {mensagemCodigoBarras && (
             <div className="resumo-devolucao">
-              <span>{mensagemCodigoBarras}</span>
+              <span>
+                {mensagemCodigoBarras}
+              </span>
             </div>
           )}
 
           {livroSelecionado && (
             <div className="resumo-devolucao">
-              <strong>{livroSelecionado.titulo}</strong>
+              <strong>
+                {livroSelecionado.titulo}
+              </strong>
 
               <span>
-                Código interno: {livroSelecionado.codigo}
+                Código interno:{" "}
+                {
+                  livroSelecionado.codigo
+                }
               </span>
 
               <span>
                 Código de barras:{" "}
-                {livroSelecionado.codigo_barras || "—"}
+                {livroSelecionado.codigo_barras ||
+                  "—"}
               </span>
 
               <span>
-                Autor: {livroSelecionado.autor}
+                Autor:{" "}
+                {
+                  livroSelecionado.autor
+                }
               </span>
 
               <span>
@@ -793,7 +1023,11 @@ function Emprestimos() {
               Cancelar
             </button>
 
-            <button onClick={salvarEmprestimo}>
+            <button
+              onClick={
+                salvarEmprestimo
+              }
+            >
               Confirmar empréstimo
             </button>
           </div>
@@ -803,11 +1037,16 @@ function Emprestimos() {
       {mostrarDevolucaoCodigo && (
         <section className="formulario">
           <div className="formulario-topo">
-            <h2>Devolver por código de barras</h2>
+            <h2>
+              Devolver por código de
+              barras
+            </h2>
 
             <button
               className="fechar"
-              onClick={fecharDevolucaoPorCodigo}
+              onClick={
+                fecharDevolucaoPorCodigo
+              }
             >
               ×
             </button>
@@ -816,13 +1055,20 @@ function Emprestimos() {
           <div className="campos">
             <label>
               Código de barras
+
               <input
-                value={codigoBarrasDevolucao}
+                value={
+                  codigoBarrasDevolucao
+                }
                 onChange={(e) =>
-                  setCodigoBarrasDevolucao(e.target.value)
+                  setCodigoBarrasDevolucao(
+                    e.target.value
+                  )
                 }
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (
+                    e.key === "Enter"
+                  ) {
                     e.preventDefault();
                     localizarEmprestimoPorCodigoBarras();
                   }
@@ -842,7 +1088,9 @@ function Emprestimos() {
               <button
                 type="button"
                 className="botao-secundario"
-                onClick={localizarEmprestimoPorCodigoBarras}
+                onClick={
+                  localizarEmprestimoPorCodigoBarras
+                }
               >
                 Localizar empréstimo
               </button>
@@ -851,103 +1099,143 @@ function Emprestimos() {
 
           {mensagemDevolucaoCodigo && (
             <div className="resumo-devolucao">
-              <span>{mensagemDevolucaoCodigo}</span>
+              <span>
+                {
+                  mensagemDevolucaoCodigo
+                }
+              </span>
             </div>
           )}
         </section>
       )}
 
-      <section className="painel">
-        <div className="painel-titulo">
-          <h2>Empréstimos em aberto</h2>
+      {mostrarSecaoAbertos && (
+        <section className="painel">
+          <div className="painel-titulo">
+            <h2>
+              {filtroStatus ===
+              "atrasado"
+                ? "Empréstimos atrasados"
+                : filtroStatus ===
+                    "pendente"
+                  ? "Pendentes de devolução"
+                  : "Empréstimos em aberto"}
+            </h2>
 
-          <span className="contador">
-            {ativos.length}{" "}
-            {ativos.length === 1 ? "livro" : "livros"}
-          </span>
-        </div>
+            <span className="contador">
+              {ativos.length}{" "}
+              {ativos.length === 1
+                ? "livro"
+                : "livros"}
+            </span>
+          </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Leitor</th>
-              <th>Livro</th>
-              <th>Empréstimo</th>
-              <th>Previsão</th>
-              <th>Status</th>
-              <th>Ação</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {ativos.length === 0 ? (
+          <table>
+            <thead>
               <tr>
-                <td colSpan={6}>
-                  {busca
-                    ? "Nenhum empréstimo encontrado para esta busca."
-                    : "Nenhum empréstimo em aberto."}
-                </td>
+                <th>Leitor</th>
+                <th>Livro</th>
+                <th>Empréstimo</th>
+                <th>Previsão</th>
+                <th>Status</th>
+                <th>Ação</th>
               </tr>
-            ) : (
-              ativos.map((emprestimo) => {
-                const atrasado = estaAtrasado(emprestimo);
+            </thead>
 
-                return (
-                  <tr key={emprestimo.id}>
-                    <td>{emprestimo.pessoa_nome}</td>
+            <tbody>
+              {ativos.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>
+                    {busca ||
+                    filtroStatus !==
+                      "todos"
+                      ? "Nenhum empréstimo encontrado para os filtros selecionados."
+                      : "Nenhum empréstimo em aberto."}
+                  </td>
+                </tr>
+              ) : (
+                ativos.map(
+                  (emprestimo) => {
+                    const atrasado =
+                      estaAtrasado(
+                        emprestimo
+                      );
 
-                    <td>
-                      {emprestimo.livro_codigo} —{" "}
-                      {emprestimo.livro_titulo}
-                    </td>
-
-                    <td>
-                      {formatarData(
-                        emprestimo.data_emprestimo
-                      )}
-                    </td>
-
-                    <td>
-                      {formatarData(
-                        emprestimo.data_prevista
-                      )}
-                    </td>
-
-                    <td>
-                      <span
-                        className={
-                          atrasado
-                            ? "status-atrasado"
-                            : "emprestado"
+                    return (
+                      <tr
+                        key={
+                          emprestimo.id
                         }
                       >
-                        {atrasado
-                          ? "Atrasado"
-                          : "Emprestado"}
-                      </span>
-                    </td>
+                        <td>
+                          {
+                            emprestimo.pessoa_nome
+                          }
+                        </td>
 
-                    <td>
-                      <button
-                        className="botao-devolver"
-                        onClick={() =>
-                          solicitarDevolucao(emprestimo)
-                        }
-                      >
-                        Devolver
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </section>
+                        <td>
+                          {
+                            emprestimo.livro_codigo
+                          }{" "}
+                          —{" "}
+                          {
+                            emprestimo.livro_titulo
+                          }
+                        </td>
 
-      {mostrarHistorico && (
+                        <td>
+                          {formatarData(
+                            emprestimo.data_emprestimo
+                          )}
+                        </td>
+
+                        <td>
+                          {formatarData(
+                            emprestimo.data_prevista
+                          )}
+                        </td>
+
+                        <td>
+                          <span
+                            className={
+                              atrasado
+                                ? "status-atrasado"
+                                : "emprestado"
+                            }
+                          >
+                            {atrasado
+                              ? "Atrasado"
+                              : "Pendente"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <button
+                            className="botao-devolver"
+                            onClick={() =>
+                              solicitarDevolucao(
+                                emprestimo
+                              )
+                            }
+                          >
+                            Devolver
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  }
+                )
+              )}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {mostrarSecaoHistorico && (
         <section className="painel painel-historico">
-          <h2>Histórico de devoluções</h2>
+          <h2>
+            Histórico de devoluções
+          </h2>
 
           <table>
             <thead>
@@ -957,47 +1245,71 @@ function Emprestimos() {
                 <th>Empréstimo</th>
                 <th>Previsto</th>
                 <th>Devolvido em</th>
+                <th>Status</th>
               </tr>
             </thead>
 
             <tbody>
               {historico.length === 0 ? (
                 <tr>
-                  <td colSpan={5}>
-                    {busca
-                      ? "Nenhum registro encontrado para esta busca."
+                  <td colSpan={6}>
+                    {busca ||
+                    filtroStatus !==
+                      "todos"
+                      ? "Nenhum registro encontrado para os filtros selecionados."
                       : "Nenhuma devolução registrada."}
                   </td>
                 </tr>
               ) : (
-                historico.map((emprestimo) => (
-                  <tr key={emprestimo.id}>
-                    <td>{emprestimo.pessoa_nome}</td>
+                historico.map(
+                  (emprestimo) => (
+                    <tr
+                      key={
+                        emprestimo.id
+                      }
+                    >
+                      <td>
+                        {
+                          emprestimo.pessoa_nome
+                        }
+                      </td>
 
-                    <td>
-                      {emprestimo.livro_codigo} —{" "}
-                      {emprestimo.livro_titulo}
-                    </td>
+                      <td>
+                        {
+                          emprestimo.livro_codigo
+                        }{" "}
+                        —{" "}
+                        {
+                          emprestimo.livro_titulo
+                        }
+                      </td>
 
-                    <td>
-                      {formatarData(
-                        emprestimo.data_emprestimo
-                      )}
-                    </td>
+                      <td>
+                        {formatarData(
+                          emprestimo.data_emprestimo
+                        )}
+                      </td>
 
-                    <td>
-                      {formatarData(
-                        emprestimo.data_prevista
-                      )}
-                    </td>
+                      <td>
+                        {formatarData(
+                          emprestimo.data_prevista
+                        )}
+                      </td>
 
-                    <td>
-                      {formatarData(
-                        emprestimo.data_devolucao
-                      )}
-                    </td>
-                  </tr>
-                ))
+                      <td>
+                        {formatarData(
+                          emprestimo.data_devolucao
+                        )}
+                      </td>
+
+                      <td>
+                        <span className="disponivel">
+                          Devolvido
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                )
               )}
             </tbody>
           </table>
@@ -1007,23 +1319,34 @@ function Emprestimos() {
       {emprestimoParaDevolver && (
         <div className="modal-fundo">
           <div className="modal">
-            <h2>Confirmar devolução</h2>
+            <h2>
+              Confirmar devolução
+            </h2>
 
-            <p>Você está registrando a devolução de:</p>
+            <p>
+              Você está registrando a
+              devolução de:
+            </p>
 
             <div className="resumo-devolucao">
               <strong>
-                {emprestimoParaDevolver.livro_titulo}
+                {
+                  emprestimoParaDevolver.livro_titulo
+                }
               </strong>
 
               <span>
                 Código:{" "}
-                {emprestimoParaDevolver.livro_codigo}
+                {
+                  emprestimoParaDevolver.livro_codigo
+                }
               </span>
 
               <span>
                 Leitor:{" "}
-                {emprestimoParaDevolver.pessoa_nome}
+                {
+                  emprestimoParaDevolver.pessoa_nome
+                }
               </span>
 
               <span>
@@ -1033,13 +1356,16 @@ function Emprestimos() {
             </div>
 
             <p>
-              Confirme para registrar a devolução.
+              Confirme para registrar a
+              devolução.
             </p>
 
             <div className="modal-acoes">
               <button
                 className="cancelar-modal"
-                onClick={cancelarDevolucao}
+                onClick={
+                  cancelarDevolucao
+                }
                 disabled={devolvendo}
               >
                 Cancelar
@@ -1047,7 +1373,9 @@ function Emprestimos() {
 
               <button
                 className="confirmar-devolucao"
-                onClick={confirmarDevolucao}
+                onClick={
+                  confirmarDevolucao
+                }
                 disabled={devolvendo}
               >
                 {devolvendo
@@ -1065,37 +1393,53 @@ function Emprestimos() {
             <h2>Livro devolvido</h2>
 
             <p>
-              <strong>Esse livro foi devolvido.</strong>
+              <strong>
+                Esse livro foi devolvido.
+              </strong>
             </p>
 
             <p>
-              Anteriormente ele foi apagado. Deseja retornar
-              ao estoque esse livro?
+              Anteriormente ele foi
+              apagado. Deseja retornar ao
+              estoque esse livro?
             </p>
 
             <div className="resumo-devolucao">
               <strong>
-                {livroApagadoDevolvido.titulo}
+                {
+                  livroApagadoDevolvido.titulo
+                }
               </strong>
 
               <span>
-                Código: {livroApagadoDevolvido.codigo}
+                Código:{" "}
+                {
+                  livroApagadoDevolvido.codigo
+                }
               </span>
             </div>
 
             <div className="modal-acoes">
               <button
                 className="cancelar-modal"
-                onClick={manterLivroForaDoEstoque}
-                disabled={restaurandoLivro}
+                onClick={
+                  manterLivroForaDoEstoque
+                }
+                disabled={
+                  restaurandoLivro
+                }
               >
                 Não
               </button>
 
               <button
                 className="confirmar-devolucao"
-                onClick={retornarLivroAoEstoque}
-                disabled={restaurandoLivro}
+                onClick={
+                  retornarLivroAoEstoque
+                }
+                disabled={
+                  restaurandoLivro
+                }
               >
                 {restaurandoLivro
                   ? "Retornando..."
