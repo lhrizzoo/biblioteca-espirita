@@ -73,6 +73,15 @@ function Livros() {
     null
   );
 
+  const [livroParaExcluir, setLivroParaExcluir] =
+    useState<Livro | null>(null);
+
+  const [livroEmprestadoParaExcluir, setLivroEmprestadoParaExcluir] =
+    useState(false);
+
+  const [excluindo, setExcluindo] = useState(false);
+  const [mensagemExclusao, setMensagemExclusao] = useState("");
+
   const [arquivoImportacao, setArquivoImportacao] = useState("");
   const [livrosImportacao, setLivrosImportacao] = useState<
     LivroImportacao[]
@@ -99,6 +108,7 @@ function Livros() {
           observacao,
           disponivel
         FROM livros
+        WHERE ativo = 1
         ORDER BY titulo
       `);
 
@@ -138,6 +148,7 @@ function Livros() {
 
   function abrirNovoLivro() {
     limparFormulario();
+    setMensagemExclusao("");
     setMostrarFormulario(true);
   }
 
@@ -151,6 +162,7 @@ function Livros() {
     setMedium(livro.medium);
     setEditora(livro.editora);
     setObservacao(livro.observacao);
+    setMensagemExclusao("");
     setMostrarFormulario(true);
   }
 
@@ -245,9 +257,10 @@ function Livros() {
               medium,
               editora,
               observacao,
-              disponivel
+              disponivel,
+              ativo
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, 1)
           `,
           [
             codigo.trim(),
@@ -270,6 +283,105 @@ function Livros() {
       alert(
         "Não foi possível salvar o livro. Verifique se o código ou o código de barras já está sendo utilizado."
       );
+    }
+  }
+
+  async function solicitarExclusao(livro: Livro) {
+    try {
+      setMensagemExclusao("");
+
+      const db = await obterBanco();
+
+      const ativos = await db.select<{ total: number }[]>(
+        `
+          SELECT COUNT(*) AS total
+          FROM emprestimos
+          WHERE livro_codigo = $1
+            AND data_devolucao IS NULL
+        `,
+        [livro.codigo]
+      );
+
+      const totalAtivos = Number(ativos[0]?.total ?? 0);
+
+      setLivroEmprestadoParaExcluir(totalAtivos > 0);
+      setLivroParaExcluir(livro);
+    } catch (erro) {
+      console.error("Erro ao verificar livro:", erro);
+
+      setMensagemExclusao(
+        "Não foi possível verificar o livro antes da exclusão."
+      );
+    }
+  }
+
+  function cancelarExclusao() {
+    if (excluindo) {
+      return;
+    }
+
+    setLivroParaExcluir(null);
+    setLivroEmprestadoParaExcluir(false);
+  }
+
+  async function confirmarExclusao() {
+    if (!livroParaExcluir || excluindo) {
+      return;
+    }
+
+    try {
+      setExcluindo(true);
+      setMensagemExclusao("");
+
+      const db = await obterBanco();
+
+      const historico = await db.select<{ total: number }[]>(
+        `
+          SELECT COUNT(*) AS total
+          FROM emprestimos
+          WHERE livro_codigo = $1
+        `,
+        [livroParaExcluir.codigo]
+      );
+
+      const totalHistorico = Number(historico[0]?.total ?? 0);
+
+      if (totalHistorico > 0) {
+        await db.execute(
+          `
+            UPDATE livros
+            SET ativo = 0,
+                disponivel = 0
+            WHERE codigo = $1
+          `,
+          [livroParaExcluir.codigo]
+        );
+      } else {
+        await db.execute(
+          `
+            DELETE FROM livros
+            WHERE codigo = $1
+          `,
+          [livroParaExcluir.codigo]
+        );
+      }
+
+      setLivroParaExcluir(null);
+      setLivroEmprestadoParaExcluir(false);
+
+      setMensagemExclusao(
+        "Livro apagado do acervo com sucesso."
+      );
+
+      await carregarLivros();
+    } catch (erro) {
+      console.error("Erro ao apagar livro:", erro);
+
+      setMensagemExclusao(
+        "Não foi possível apagar o livro."
+      );
+    } finally {
+      setExcluindo(false);
     }
   }
 
@@ -301,28 +413,42 @@ function Livros() {
         transformHeader: (cabecalho) => cabecalho.trim(),
       });
 
-      if (resultado.errors.length > 0 && resultado.data.length === 0) {
+      if (
+        resultado.errors.length > 0 &&
+        resultado.data.length === 0
+      ) {
         setMensagemImportacao(
           "Não foi possível interpretar o arquivo CSV."
         );
         return;
       }
 
+      const db = await obterBanco();
+
+      const livrosCadastrados = await db.select<
+        { codigo: string; codigo_barras: string | null }[]
+      >(`
+        SELECT codigo, codigo_barras
+        FROM livros
+      `);
+
       const codigosExistentes = new Set(
-        livros.map((livro) => livro.codigo.trim().toLowerCase())
+        livrosCadastrados.map((livro) =>
+          livro.codigo.trim().toLowerCase()
+        )
       );
 
       const barrasExistentes = new Set(
-        livros
-          .map((livro) => livro.codigo_barras.trim())
+        livrosCadastrados
+          .map((livro) => livro.codigo_barras?.trim() ?? "")
           .filter(Boolean)
       );
 
       const codigosDoArquivo = new Set<string>();
       const barrasDoArquivo = new Set<string>();
 
-      const preparados: LivroImportacao[] = resultado.data.map(
-        (linha) => {
+      const preparados: LivroImportacao[] =
+        resultado.data.map((linha) => {
           const codigoLinha = encontrarValor(linha, [
             "codigo",
             "código",
@@ -381,14 +507,16 @@ function Livros() {
             motivo = "Dados obrigatórios incompletos";
           }
 
-          const codigoNormalizado = codigoLinha.toLowerCase();
+          const codigoNormalizado =
+            codigoLinha.toLowerCase();
 
           if (
             valido &&
             codigosExistentes.has(codigoNormalizado)
           ) {
             valido = false;
-            motivo = "Código já existe no acervo";
+            motivo =
+              "Código já existe ou pertence a um livro apagado";
           }
 
           if (
@@ -405,7 +533,8 @@ function Livros() {
             barrasExistentes.has(codigoBarrasLinha)
           ) {
             valido = false;
-            motivo = "Código de barras já existe no acervo";
+            motivo =
+              "Código de barras já existe ou pertence a um livro apagado";
           }
 
           if (
@@ -414,7 +543,8 @@ function Livros() {
             barrasDoArquivo.has(codigoBarrasLinha)
           ) {
             valido = false;
-            motivo = "Código de barras repetido no arquivo";
+            motivo =
+              "Código de barras repetido no arquivo";
           }
 
           if (codigoLinha) {
@@ -437,11 +567,14 @@ function Livros() {
             valido,
             motivo,
           };
-        }
-      );
+        });
 
       setArquivoImportacao(
-        arquivo.split("\\").join("/").split("/").pop() ?? arquivo
+        arquivo
+          .split("\\")
+          .join("/")
+          .split("/")
+          .pop() ?? arquivo
       );
 
       setLivrosImportacao(preparados);
@@ -450,7 +583,9 @@ function Livros() {
       console.error("Erro ao abrir CSV:", erro);
 
       const detalhe =
-        erro instanceof Error ? erro.message : String(erro);
+        erro instanceof Error
+          ? erro.message
+          : String(erro);
 
       setMensagemImportacao(
         `Não foi possível abrir o arquivo CSV: ${detalhe}`
@@ -507,9 +642,10 @@ function Livros() {
                 medium,
                 editora,
                 observacao,
-                disponivel
+                disponivel,
+                ativo
               )
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, 1)
             `,
             [
               livro.codigo.trim(),
@@ -554,10 +690,15 @@ function Livros() {
         }`
       );
     } catch (erro) {
-      console.error("Erro ao importar livros:", erro);
+      console.error(
+        "Erro ao importar livros:",
+        erro
+      );
 
       const detalhe =
-        erro instanceof Error ? erro.message : String(erro);
+        erro instanceof Error
+          ? erro.message
+          : String(erro);
 
       setMensagemImportacao(
         `Não foi possível concluir a importação: ${detalhe}`
@@ -569,29 +710,39 @@ function Livros() {
 
   const termo = pesquisa.trim().toLowerCase();
 
-  const livrosFiltrados = livros.filter((livro) => {
-    if (!termo) {
-      return true;
+  const livrosFiltrados = livros.filter(
+    (livro) => {
+      if (!termo) {
+        return true;
+      }
+
+      return (
+        livro.codigo.toLowerCase().includes(termo) ||
+        livro.codigo_barras
+          .toLowerCase()
+          .includes(termo) ||
+        livro.titulo.toLowerCase().includes(termo) ||
+        livro.autor.toLowerCase().includes(termo) ||
+        livro.espirito
+          .toLowerCase()
+          .includes(termo) ||
+        livro.medium.toLowerCase().includes(termo) ||
+        livro.editora.toLowerCase().includes(termo) ||
+        livro.observacao
+          .toLowerCase()
+          .includes(termo)
+      );
     }
+  );
 
-    return (
-      livro.codigo.toLowerCase().includes(termo) ||
-      livro.codigo_barras.toLowerCase().includes(termo) ||
-      livro.titulo.toLowerCase().includes(termo) ||
-      livro.autor.toLowerCase().includes(termo) ||
-      livro.espirito.toLowerCase().includes(termo) ||
-      livro.medium.toLowerCase().includes(termo) ||
-      livro.editora.toLowerCase().includes(termo) ||
-      livro.observacao.toLowerCase().includes(termo)
-    );
-  });
-
-  const quantidadeValidos = livrosImportacao.filter(
-    (livro) => livro.valido
-  ).length;
+  const quantidadeValidos =
+    livrosImportacao.filter(
+      (livro) => livro.valido
+    ).length;
 
   const quantidadeInvalidos =
-    livrosImportacao.length - quantidadeValidos;
+    livrosImportacao.length -
+    quantidadeValidos;
 
   return (
     <>
@@ -608,17 +759,26 @@ function Livros() {
         </button>
       </section>
 
-      {mensagemImportacao && !mostrarImportacao && (
+      {mensagemExclusao && (
         <section className="formulario">
-          <p>{mensagemImportacao}</p>
+          <p>{mensagemExclusao}</p>
         </section>
       )}
+
+      {mensagemImportacao &&
+        !mostrarImportacao && (
+          <section className="formulario">
+            <p>{mensagemImportacao}</p>
+          </section>
+        )}
 
       {mostrarFormulario && (
         <section className="formulario">
           <div className="formulario-topo">
             <h2>
-              {editando ? "Editar livro" : "Cadastrar livro"}
+              {editando
+                ? "Editar livro"
+                : "Cadastrar livro"}
             </h2>
 
             <button
@@ -634,7 +794,9 @@ function Livros() {
               Código
               <input
                 value={codigo}
-                onChange={(e) => setCodigo(e.target.value)}
+                onChange={(e) =>
+                  setCodigo(e.target.value)
+                }
                 placeholder="Ex.: 003"
               />
             </label>
@@ -643,7 +805,9 @@ function Livros() {
               Código de barras
               <input
                 value={codigoBarras}
-                onChange={(e) => setCodigoBarras(e.target.value)}
+                onChange={(e) =>
+                  setCodigoBarras(e.target.value)
+                }
                 placeholder="Digite ou passe o livro no leitor"
                 autoComplete="off"
               />
@@ -653,7 +817,9 @@ function Livros() {
               Título
               <input
                 value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
+                onChange={(e) =>
+                  setTitulo(e.target.value)
+                }
                 placeholder="Nome do livro"
               />
             </label>
@@ -662,7 +828,9 @@ function Livros() {
               Autor
               <input
                 value={autor}
-                onChange={(e) => setAutor(e.target.value)}
+                onChange={(e) =>
+                  setAutor(e.target.value)
+                }
                 placeholder="Nome do autor"
               />
             </label>
@@ -671,7 +839,9 @@ function Livros() {
               Espírito
               <input
                 value={espirito}
-                onChange={(e) => setEspirito(e.target.value)}
+                onChange={(e) =>
+                  setEspirito(e.target.value)
+                }
                 placeholder="Espírito autor da obra"
               />
             </label>
@@ -680,7 +850,9 @@ function Livros() {
               Médium
               <input
                 value={medium}
-                onChange={(e) => setMedium(e.target.value)}
+                onChange={(e) =>
+                  setMedium(e.target.value)
+                }
                 placeholder="Nome do médium"
               />
             </label>
@@ -689,7 +861,9 @@ function Livros() {
               Editora
               <input
                 value={editora}
-                onChange={(e) => setEditora(e.target.value)}
+                onChange={(e) =>
+                  setEditora(e.target.value)
+                }
                 placeholder="Nome da editora"
               />
             </label>
@@ -698,7 +872,9 @@ function Livros() {
               Observação
               <input
                 value={observacao}
-                onChange={(e) => setObservacao(e.target.value)}
+                onChange={(e) =>
+                  setObservacao(e.target.value)
+                }
                 placeholder="Informação adicional"
               />
             </label>
@@ -724,7 +900,9 @@ function Livros() {
       <section className="pesquisa">
         <input
           value={pesquisa}
-          onChange={(e) => setPesquisa(e.target.value)}
+          onChange={(e) =>
+            setPesquisa(e.target.value)
+          }
           placeholder="Pesquisar por código, código de barras, título, autor, espírito, médium ou editora..."
           autoComplete="off"
         />
@@ -764,12 +942,91 @@ function Livros() {
                   key={livro.codigo}
                   livro={livro}
                   abrirEdicao={abrirEdicao}
+                  solicitarExclusao={
+                    solicitarExclusao
+                  }
                 />
               ))
             )}
           </tbody>
         </table>
       </section>
+
+      {livroParaExcluir && (
+        <div className="modal-fundo">
+          <div className="modal">
+            <h2>Apagar livro</h2>
+
+            {livroEmprestadoParaExcluir ? (
+              <>
+                <p>
+                  <strong>
+                    Este livro está emprestado.
+                  </strong>
+                </p>
+
+                <p>
+                  Tem certeza que deseja apagar?
+                </p>
+              </>
+            ) : (
+              <p>
+                Tem certeza de que deseja apagar este
+                livro do acervo?
+              </p>
+            )}
+
+            <div className="resumo-devolucao">
+              <strong>
+                {livroParaExcluir.titulo}
+              </strong>
+
+              <span>
+                Código: {livroParaExcluir.codigo}
+              </span>
+
+              <span>
+                Autor: {livroParaExcluir.autor}
+              </span>
+            </div>
+
+            {livroEmprestadoParaExcluir && (
+              <p>
+                O empréstimo continuará registrado. Quando
+                o livro for devolvido, o sistema perguntará
+                se ele deve retornar ao estoque.
+              </p>
+            )}
+
+            {!livroEmprestadoParaExcluir && (
+              <p>
+                O histórico de empréstimos, caso exista,
+                será preservado.
+              </p>
+            )}
+
+            <div className="modal-acoes">
+              <button
+                className="cancelar-modal"
+                onClick={cancelarExclusao}
+                disabled={excluindo}
+              >
+                Cancelar
+              </button>
+
+              <button
+                className="confirmar-devolucao"
+                onClick={confirmarExclusao}
+                disabled={excluindo}
+              >
+                {excluindo
+                  ? "Apagando..."
+                  : "Confirmar exclusão"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {mostrarImportacao && (
         <div className="modal-fundo">
@@ -780,13 +1037,15 @@ function Livros() {
             <h2>Importar livros</h2>
 
             <p>
-              Arquivo: <strong>{arquivoImportacao}</strong>
+              Arquivo:{" "}
+              <strong>{arquivoImportacao}</strong>
             </p>
 
             <p>
               Foram encontradas {livrosImportacao.length} linhas.{" "}
-              <strong>{quantidadeValidos}</strong> podem ser
-              importadas e <strong>{quantidadeInvalidos}</strong>{" "}
+              <strong>{quantidadeValidos}</strong>{" "}
+              podem ser importadas e{" "}
+              <strong>{quantidadeInvalidos}</strong>{" "}
               serão ignoradas.
             </p>
 
@@ -813,29 +1072,35 @@ function Livros() {
                 </thead>
 
                 <tbody>
-                  {livrosImportacao.map((livro, indice) => (
-                    <tr key={`${livro.codigo}-${indice}`}>
-                      <td>{livro.codigo || "—"}</td>
-                      <td>{livro.codigo_barras || "—"}</td>
-                      <td>{livro.titulo || "—"}</td>
-                      <td>{livro.autor || "—"}</td>
-                      <td>{livro.espirito || "—"}</td>
-                      <td>{livro.medium || "—"}</td>
-                      <td>{livro.editora || "—"}</td>
+                  {livrosImportacao.map(
+                    (livro, indice) => (
+                      <tr
+                        key={`${livro.codigo}-${indice}`}
+                      >
+                        <td>{livro.codigo || "—"}</td>
+                        <td>
+                          {livro.codigo_barras || "—"}
+                        </td>
+                        <td>{livro.titulo || "—"}</td>
+                        <td>{livro.autor || "—"}</td>
+                        <td>{livro.espirito || "—"}</td>
+                        <td>{livro.medium || "—"}</td>
+                        <td>{livro.editora || "—"}</td>
 
-                      <td>
-                        {livro.valido ? (
-                          <span className="disponivel">
-                            Pronto
-                          </span>
-                        ) : (
-                          <span className="status-atrasado">
-                            {livro.motivo}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        <td>
+                          {livro.valido ? (
+                            <span className="disponivel">
+                              Pronto
+                            </span>
+                          ) : (
+                            <span className="status-atrasado">
+                              {livro.motivo}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  )}
                 </tbody>
               </table>
             </div>
@@ -857,7 +1122,8 @@ function Livros() {
                 className="confirmar-devolucao"
                 onClick={confirmarImportacao}
                 disabled={
-                  importando || quantidadeValidos === 0
+                  importando ||
+                  quantidadeValidos === 0
                 }
               >
                 {importando
@@ -879,9 +1145,11 @@ function Livros() {
 function LinhaLivro({
   livro,
   abrirEdicao,
+  solicitarExclusao,
 }: {
   livro: Livro;
   abrirEdicao: (livro: Livro) => void;
+  solicitarExclusao: (livro: Livro) => void;
 }) {
   const [emprestadoPara, setEmprestadoPara] =
     useState<string>("");
@@ -896,7 +1164,9 @@ function LinhaLivro({
       try {
         const db = await obterBanco();
 
-        const resultado = await db.select<{ nome: string }[]>(
+        const resultado = await db.select<
+          { nome: string }[]
+        >(
           `
             SELECT p.nome
             FROM emprestimos e
@@ -957,12 +1227,27 @@ function LinhaLivro({
       </td>
 
       <td>
-        <button
-          className="botao-editar"
-          onClick={() => abrirEdicao(livro)}
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            flexWrap: "wrap",
+          }}
         >
-          Editar
-        </button>
+          <button
+            className="botao-editar"
+            onClick={() => abrirEdicao(livro)}
+          >
+            Editar
+          </button>
+
+          <button
+            className="botao-devolver"
+            onClick={() => solicitarExclusao(livro)}
+          >
+            Excluir
+          </button>
+        </div>
       </td>
     </tr>
   );

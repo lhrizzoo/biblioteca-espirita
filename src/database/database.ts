@@ -45,7 +45,8 @@ export async function iniciarBanco() {
       medium TEXT NOT NULL DEFAULT '',
       editora TEXT NOT NULL DEFAULT '',
       observacao TEXT NOT NULL DEFAULT '',
-      disponivel INTEGER NOT NULL DEFAULT 1
+      disponivel INTEGER NOT NULL DEFAULT 1,
+      ativo INTEGER NOT NULL DEFAULT 1
     )
   `);
 
@@ -83,6 +84,19 @@ export async function iniciarBanco() {
     "observacao",
     "TEXT NOT NULL DEFAULT ''"
   );
+
+  await adicionarColunaSeNecessario(
+    db,
+    "livros",
+    "ativo",
+    "INTEGER NOT NULL DEFAULT 1"
+  );
+
+  await db.execute(`
+    UPDATE livros
+    SET ativo = 1
+    WHERE ativo IS NULL
+  `);
 
   await db.execute(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_livros_codigo_barras_unico

@@ -27,6 +27,11 @@ function normalizarTexto(texto: string) {
     .trim();
 }
 
+type LivroApagadoDevolvido = {
+  codigo: string;
+  titulo: string;
+};
+
 function Emprestimos() {
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>([]);
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
@@ -61,7 +66,11 @@ function Emprestimos() {
   const [emprestimoParaDevolver, setEmprestimoParaDevolver] =
     useState<Emprestimo | null>(null);
 
+  const [livroApagadoDevolvido, setLivroApagadoDevolvido] =
+    useState<LivroApagadoDevolvido | null>(null);
+
   const [devolvendo, setDevolvendo] = useState(false);
+  const [restaurandoLivro, setRestaurandoLivro] = useState(false);
 
   async function carregarDados() {
     try {
@@ -104,6 +113,7 @@ function Emprestimos() {
           observacao,
           disponivel
         FROM livros
+        WHERE ativo = 1
         ORDER BY titulo
       `);
 
@@ -192,6 +202,7 @@ function Emprestimos() {
             disponivel
           FROM livros
           WHERE codigo_barras = $1
+            AND ativo = 1
           LIMIT 1
         `,
         [codigo]
@@ -199,7 +210,7 @@ function Emprestimos() {
 
       if (resultado.length === 0) {
         setMensagemCodigoBarras(
-          "Nenhum livro foi encontrado com este código de barras."
+          "Nenhum livro ativo foi encontrado com este código de barras."
         );
         return;
       }
@@ -349,9 +360,11 @@ function Emprestimos() {
         return;
       }
 
-      const disponibilidade = await db.select<{ disponivel: number }[]>(
+      const disponibilidade = await db.select<
+        { disponivel: number; ativo: number }[]
+      >(
         `
-          SELECT disponivel
+          SELECT disponivel, ativo
           FROM livros
           WHERE codigo = $1
         `,
@@ -360,7 +373,8 @@ function Emprestimos() {
 
       if (
         disponibilidade.length === 0 ||
-        disponibilidade[0].disponivel !== 1
+        disponibilidade[0].disponivel !== 1 ||
+        disponibilidade[0].ativo !== 1
       ) {
         alert("Este livro não está disponível para empréstimo.");
         await carregarDados();
@@ -417,6 +431,7 @@ function Emprestimos() {
 
   function cancelarDevolucao() {
     if (devolvendo) return;
+
     setEmprestimoParaDevolver(null);
   }
 
@@ -427,6 +442,25 @@ function Emprestimos() {
 
     try {
       const db = await obterBanco();
+
+      const livro = await db.select<
+        { ativo: number; titulo: string }[]
+      >(
+        `
+          SELECT ativo, titulo
+          FROM livros
+          WHERE codigo = $1
+          LIMIT 1
+        `,
+        [emprestimoParaDevolver.livro_codigo]
+      );
+
+      if (livro.length === 0) {
+        alert("O livro deste empréstimo não foi encontrado.");
+        return;
+      }
+
+      const livroEstavaApagado = livro[0].ativo !== 1;
 
       await db.execute("BEGIN TRANSACTION");
 
@@ -441,14 +475,25 @@ function Emprestimos() {
           [hoje(), emprestimoParaDevolver.id]
         );
 
-        await db.execute(
-          `
-            UPDATE livros
-            SET disponivel = 1
-            WHERE codigo = $1
-          `,
-          [emprestimoParaDevolver.livro_codigo]
-        );
+        if (livroEstavaApagado) {
+          await db.execute(
+            `
+              UPDATE livros
+              SET disponivel = 0
+              WHERE codigo = $1
+            `,
+            [emprestimoParaDevolver.livro_codigo]
+          );
+        } else {
+          await db.execute(
+            `
+              UPDATE livros
+              SET disponivel = 1
+              WHERE codigo = $1
+            `,
+            [emprestimoParaDevolver.livro_codigo]
+          );
+        }
 
         await db.execute("COMMIT");
       } catch (erro) {
@@ -456,18 +501,70 @@ function Emprestimos() {
         throw erro;
       }
 
+      const codigoLivro = emprestimoParaDevolver.livro_codigo;
+      const tituloLivro = emprestimoParaDevolver.livro_titulo;
+
       setEmprestimoParaDevolver(null);
       setMostrarDevolucaoCodigo(false);
       setCodigoBarrasDevolucao("");
       setMensagemDevolucaoCodigo("");
 
       await carregarDados();
+
+      if (livroEstavaApagado) {
+        setLivroApagadoDevolvido({
+          codigo: codigoLivro,
+          titulo: tituloLivro,
+        });
+      }
     } catch (erro) {
       console.error("Erro ao devolver livro:", erro);
       alert("Não foi possível registrar a devolução.");
     } finally {
       setDevolvendo(false);
     }
+  }
+
+  async function retornarLivroAoEstoque() {
+    if (!livroApagadoDevolvido || restaurandoLivro) {
+      return;
+    }
+
+    setRestaurandoLivro(true);
+
+    try {
+      const db = await obterBanco();
+
+      await db.execute(
+        `
+          UPDATE livros
+          SET ativo = 1,
+              disponivel = 1
+          WHERE codigo = $1
+        `,
+        [livroApagadoDevolvido.codigo]
+      );
+
+      setLivroApagadoDevolvido(null);
+
+      await carregarDados();
+    } catch (erro) {
+      console.error("Erro ao retornar livro ao estoque:", erro);
+
+      alert(
+        "Não foi possível retornar o livro ao estoque."
+      );
+    } finally {
+      setRestaurandoLivro(false);
+    }
+  }
+
+  function manterLivroForaDoEstoque() {
+    if (restaurandoLivro) {
+      return;
+    }
+
+    setLivroApagadoDevolvido(null);
   }
 
   function correspondeBusca(emprestimo: Emprestimo) {
@@ -494,7 +591,9 @@ function Emprestimos() {
       correspondeBusca(emprestimo)
   );
 
-  const livrosDisponiveis = livros.filter((livro) => livro.disponivel);
+  const livrosDisponiveis = livros.filter(
+    (livro) => livro.disponivel
+  );
 
   const livroSelecionado = livros.find(
     (livro) => livro.codigo === livroCodigo
@@ -636,7 +735,9 @@ function Emprestimos() {
               <input
                 type="date"
                 value={dataEmprestimo}
-                onChange={(e) => setDataEmprestimo(e.target.value)}
+                onChange={(e) =>
+                  setDataEmprestimo(e.target.value)
+                }
               />
             </label>
 
@@ -645,7 +746,9 @@ function Emprestimos() {
               <input
                 type="date"
                 value={dataPrevista}
-                onChange={(e) => setDataPrevista(e.target.value)}
+                onChange={(e) =>
+                  setDataPrevista(e.target.value)
+                }
               />
             </label>
           </div>
@@ -669,7 +772,9 @@ function Emprestimos() {
                 {livroSelecionado.codigo_barras || "—"}
               </span>
 
-              <span>Autor: {livroSelecionado.autor}</span>
+              <span>
+                Autor: {livroSelecionado.autor}
+              </span>
 
               <span>
                 Situação:{" "}
@@ -757,7 +862,8 @@ function Emprestimos() {
           <h2>Empréstimos em aberto</h2>
 
           <span className="contador">
-            {ativos.length} {ativos.length === 1 ? "livro" : "livros"}
+            {ativos.length}{" "}
+            {ativos.length === 1 ? "livro" : "livros"}
           </span>
         </div>
 
@@ -796,11 +902,15 @@ function Emprestimos() {
                     </td>
 
                     <td>
-                      {formatarData(emprestimo.data_emprestimo)}
+                      {formatarData(
+                        emprestimo.data_emprestimo
+                      )}
                     </td>
 
                     <td>
-                      {formatarData(emprestimo.data_prevista)}
+                      {formatarData(
+                        emprestimo.data_prevista
+                      )}
                     </td>
 
                     <td>
@@ -870,15 +980,21 @@ function Emprestimos() {
                     </td>
 
                     <td>
-                      {formatarData(emprestimo.data_emprestimo)}
+                      {formatarData(
+                        emprestimo.data_emprestimo
+                      )}
                     </td>
 
                     <td>
-                      {formatarData(emprestimo.data_prevista)}
+                      {formatarData(
+                        emprestimo.data_prevista
+                      )}
                     </td>
 
                     <td>
-                      {formatarData(emprestimo.data_devolucao)}
+                      {formatarData(
+                        emprestimo.data_devolucao
+                      )}
                     </td>
                   </tr>
                 ))
@@ -911,13 +1027,13 @@ function Emprestimos() {
               </span>
 
               <span>
-                Data da devolução: {formatarData(hoje())}
+                Data da devolução:{" "}
+                {formatarData(hoje())}
               </span>
             </div>
 
             <p>
-              Após confirmar, o livro ficará disponível
-              novamente para empréstimo.
+              Confirme para registrar a devolução.
             </p>
 
             <div className="modal-acoes">
@@ -937,6 +1053,53 @@ function Emprestimos() {
                 {devolvendo
                   ? "Registrando..."
                   : "Confirmar devolução"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {livroApagadoDevolvido && (
+        <div className="modal-fundo">
+          <div className="modal">
+            <h2>Livro devolvido</h2>
+
+            <p>
+              <strong>Esse livro foi devolvido.</strong>
+            </p>
+
+            <p>
+              Anteriormente ele foi apagado. Deseja retornar
+              ao estoque esse livro?
+            </p>
+
+            <div className="resumo-devolucao">
+              <strong>
+                {livroApagadoDevolvido.titulo}
+              </strong>
+
+              <span>
+                Código: {livroApagadoDevolvido.codigo}
+              </span>
+            </div>
+
+            <div className="modal-acoes">
+              <button
+                className="cancelar-modal"
+                onClick={manterLivroForaDoEstoque}
+                disabled={restaurandoLivro}
+              >
+                Não
+              </button>
+
+              <button
+                className="confirmar-devolucao"
+                onClick={retornarLivroAoEstoque}
+                disabled={restaurandoLivro}
+              >
+                {restaurandoLivro
+                  ? "Retornando..."
+                  : "Sim, retornar ao estoque"}
               </button>
             </div>
           </div>
