@@ -320,6 +320,25 @@ function Emprestimos() {
     try {
       const db = await obterBanco();
 
+      const quantidadeAtivos = await db.select<{ total: number }[]>(
+        `
+          SELECT COUNT(*) AS total
+          FROM emprestimos
+          WHERE pessoa_id = $1
+            AND data_devolucao IS NULL
+        `,
+        [Number(pessoaId)]
+      );
+
+      const totalAtivos = Number(quantidadeAtivos[0]?.total ?? 0);
+
+      if (totalAtivos >= 2) {
+        alert(
+          "Este leitor já possui 2 livros emprestados. É necessário devolver um livro antes de realizar um novo empréstimo."
+        );
+        return;
+      }
+
       const disponibilidade = await db.select<{ disponivel: number }[]>(
         `
           SELECT disponivel
