@@ -10,6 +10,10 @@ type LivroImportacao = {
   codigo: string;
   titulo: string;
   autor: string;
+  espirito: string;
+  medium: string;
+  editora: string;
+  observacao: string;
   valido: boolean;
   motivo: string;
 };
@@ -58,7 +62,14 @@ function Livros() {
   const [codigo, setCodigo] = useState("");
   const [titulo, setTitulo] = useState("");
   const [autor, setAutor] = useState("");
-  const [codigoOriginal, setCodigoOriginal] = useState<string | null>(null);
+  const [espirito, setEspirito] = useState("");
+  const [medium, setMedium] = useState("");
+  const [editora, setEditora] = useState("");
+  const [observacao, setObservacao] = useState("");
+
+  const [codigoOriginal, setCodigoOriginal] = useState<string | null>(
+    null
+  );
 
   const [arquivoImportacao, setArquivoImportacao] = useState("");
   const [livrosImportacao, setLivrosImportacao] = useState<
@@ -75,7 +86,15 @@ function Livros() {
       const db = await obterBanco();
 
       const registros = await db.select<LivroBanco[]>(`
-        SELECT codigo, titulo, autor, disponivel
+        SELECT
+          codigo,
+          titulo,
+          autor,
+          espirito,
+          medium,
+          editora,
+          observacao,
+          disponivel
         FROM livros
         ORDER BY titulo
       `);
@@ -85,6 +104,10 @@ function Livros() {
           codigo: livro.codigo,
           titulo: livro.titulo,
           autor: livro.autor,
+          espirito: livro.espirito ?? "",
+          medium: livro.medium ?? "",
+          editora: livro.editora ?? "",
+          observacao: livro.observacao ?? "",
           disponivel: livro.disponivel === 1,
         }))
       );
@@ -101,6 +124,10 @@ function Livros() {
     setCodigo("");
     setTitulo("");
     setAutor("");
+    setEspirito("");
+    setMedium("");
+    setEditora("");
+    setObservacao("");
     setCodigoOriginal(null);
   }
 
@@ -114,6 +141,10 @@ function Livros() {
     setCodigo(livro.codigo);
     setTitulo(livro.titulo);
     setAutor(livro.autor);
+    setEspirito(livro.espirito);
+    setMedium(livro.medium);
+    setEditora(livro.editora);
+    setObservacao(livro.observacao);
     setMostrarFormulario(true);
   }
 
@@ -135,23 +166,51 @@ function Livros() {
         await db.execute(
           `
             UPDATE livros
-            SET codigo = $1, titulo = $2, autor = $3
-            WHERE codigo = $4
+            SET
+              codigo = $1,
+              titulo = $2,
+              autor = $3,
+              espirito = $4,
+              medium = $5,
+              editora = $6,
+              observacao = $7
+            WHERE codigo = $8
           `,
           [
             codigo.trim(),
             titulo.trim(),
             autor.trim(),
+            espirito.trim(),
+            medium.trim(),
+            editora.trim(),
+            observacao.trim(),
             codigoOriginal,
           ]
         );
       } else {
         await db.execute(
           `
-            INSERT INTO livros (codigo, titulo, autor, disponivel)
-            VALUES ($1, $2, $3, 1)
+            INSERT INTO livros (
+              codigo,
+              titulo,
+              autor,
+              espirito,
+              medium,
+              editora,
+              observacao,
+              disponivel
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 1)
           `,
-          [codigo.trim(), titulo.trim(), autor.trim()]
+          [
+            codigo.trim(),
+            titulo.trim(),
+            autor.trim(),
+            espirito.trim(),
+            medium.trim(),
+            editora.trim(),
+            observacao.trim(),
+          ]
         );
       }
 
@@ -227,6 +286,29 @@ function Livros() {
             "autoria",
           ]);
 
+          const espiritoLinha = encontrarValor(linha, [
+            "espirito",
+            "espírito",
+          ]);
+
+          const mediumLinha = encontrarValor(linha, [
+            "medium",
+            "médium",
+            "mediumpsicografo",
+            "médiumpsicógrafo",
+          ]);
+
+          const editoraLinha = encontrarValor(linha, [
+            "editora",
+            "editor",
+          ]);
+
+          const observacaoLinha = encontrarValor(linha, [
+            "observacao",
+            "observação",
+            "obs",
+          ]);
+
           let valido = true;
           let motivo = "";
 
@@ -261,6 +343,10 @@ function Livros() {
             codigo: codigoLinha,
             titulo: tituloLinha,
             autor: autorLinha,
+            espirito: espiritoLinha,
+            medium: mediumLinha,
+            editora: editoraLinha,
+            observacao: observacaoLinha,
             valido,
             motivo,
           };
@@ -324,14 +410,22 @@ function Livros() {
                 codigo,
                 titulo,
                 autor,
+                espirito,
+                medium,
+                editora,
+                observacao,
                 disponivel
               )
-              VALUES ($1, $2, $3, 1)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, 1)
             `,
             [
               livro.codigo.trim(),
               livro.titulo.trim(),
               livro.autor.trim(),
+              livro.espirito.trim(),
+              livro.medium.trim(),
+              livro.editora.trim(),
+              livro.observacao.trim(),
             ]
           );
         }
@@ -352,7 +446,9 @@ function Livros() {
 
       setMensagemImportacao(
         `${validos.length} ${
-          validos.length === 1 ? "livro importado" : "livros importados"
+          validos.length === 1
+            ? "livro importado"
+            : "livros importados"
         } com sucesso${
           ignorados > 0
             ? `. ${ignorados} ${
@@ -387,7 +483,11 @@ function Livros() {
     return (
       livro.codigo.toLowerCase().includes(termo) ||
       livro.titulo.toLowerCase().includes(termo) ||
-      livro.autor.toLowerCase().includes(termo)
+      livro.autor.toLowerCase().includes(termo) ||
+      livro.espirito.toLowerCase().includes(termo) ||
+      livro.medium.toLowerCase().includes(termo) ||
+      livro.editora.toLowerCase().includes(termo) ||
+      livro.observacao.toLowerCase().includes(termo)
     );
   });
 
@@ -461,6 +561,42 @@ function Livros() {
                 placeholder="Nome do autor"
               />
             </label>
+
+            <label>
+              Espírito
+              <input
+                value={espirito}
+                onChange={(e) => setEspirito(e.target.value)}
+                placeholder="Espírito autor da obra"
+              />
+            </label>
+
+            <label>
+              Médium
+              <input
+                value={medium}
+                onChange={(e) => setMedium(e.target.value)}
+                placeholder="Nome do médium"
+              />
+            </label>
+
+            <label>
+              Editora
+              <input
+                value={editora}
+                onChange={(e) => setEditora(e.target.value)}
+                placeholder="Nome da editora"
+              />
+            </label>
+
+            <label>
+              Observação
+              <input
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+                placeholder="Informação adicional"
+              />
+            </label>
           </div>
 
           <div className="formulario-acoes">
@@ -484,7 +620,7 @@ function Livros() {
         <input
           value={pesquisa}
           onChange={(e) => setPesquisa(e.target.value)}
-          placeholder="Pesquisar por código, título ou autor..."
+          placeholder="Pesquisar por código, título, autor, espírito, médium, editora ou observação..."
         />
       </section>
 
@@ -497,6 +633,9 @@ function Livros() {
               <th>Código</th>
               <th>Livro</th>
               <th>Autor</th>
+              <th>Espírito</th>
+              <th>Médium</th>
+              <th>Editora</th>
               <th>Situação</th>
               <th>Com quem está</th>
               <th>Ações</th>
@@ -506,7 +645,7 @@ function Livros() {
           <tbody>
             {livrosFiltrados.length === 0 ? (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={9}>
                   {pesquisa.trim()
                     ? "Nenhum livro encontrado."
                     : "Nenhum livro cadastrado."}
@@ -529,7 +668,7 @@ function Livros() {
         <div className="modal-fundo">
           <div
             className="modal"
-            style={{ maxWidth: "900px" }}
+            style={{ maxWidth: "1000px" }}
           >
             <h2>Importar livros</h2>
 
@@ -558,6 +697,9 @@ function Livros() {
                     <th>Código</th>
                     <th>Título</th>
                     <th>Autor</th>
+                    <th>Espírito</th>
+                    <th>Médium</th>
+                    <th>Editora</th>
                     <th>Validação</th>
                   </tr>
                 </thead>
@@ -568,6 +710,9 @@ function Livros() {
                       <td>{livro.codigo || "—"}</td>
                       <td>{livro.titulo || "—"}</td>
                       <td>{livro.autor || "—"}</td>
+                      <td>{livro.espirito || "—"}</td>
+                      <td>{livro.medium || "—"}</td>
+                      <td>{livro.editora || "—"}</td>
 
                       <td>
                         {livro.valido ? (
@@ -677,6 +822,9 @@ function LinhaLivro({
       <td>{livro.codigo}</td>
       <td>{livro.titulo}</td>
       <td>{livro.autor}</td>
+      <td>{livro.espirito || "—"}</td>
+      <td>{livro.medium || "—"}</td>
+      <td>{livro.editora || "—"}</td>
 
       <td>
         <span

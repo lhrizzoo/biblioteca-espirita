@@ -4,6 +4,10 @@ export type Livro = {
   codigo: string;
   titulo: string;
   autor: string;
+  espirito: string;
+  medium: string;
+  editora: string;
+  observacao: string;
   disponivel: boolean;
 };
 
@@ -11,6 +15,10 @@ export type LivroBanco = {
   codigo: string;
   titulo: string;
   autor: string;
+  espirito: string;
+  medium: string;
+  editora: string;
+  observacao: string;
   disponivel: number;
 };
 
