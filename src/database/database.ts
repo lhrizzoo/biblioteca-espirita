@@ -16,6 +16,24 @@ async function colunaExiste(
   return colunas.some((item) => item.name === coluna);
 }
 
+async function tabelaExiste(
+  db: Awaited<ReturnType<typeof obterBanco>>,
+  tabela: string
+) {
+  const resultado = await db.select<{ name: string }[]>(
+    `
+      SELECT name
+      FROM sqlite_master
+      WHERE type = 'table'
+        AND name = $1
+      LIMIT 1
+    `,
+    [tabela]
+  );
+
+  return resultado.length > 0;
+}
+
 async function adicionarColunaSeNecessario(
   db: Awaited<ReturnType<typeof obterBanco>>,
   tabela: string,
@@ -29,6 +47,49 @@ async function adicionarColunaSeNecessario(
       `ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${definicao}`
     );
   }
+}
+
+export async function bancoPossuiDados() {
+  const db = await obterBanco();
+
+  const possuiLivros = await tabelaExiste(db, "livros");
+  const possuiPessoas = await tabelaExiste(db, "pessoas");
+  const possuiEmprestimos = await tabelaExiste(
+    db,
+    "emprestimos"
+  );
+
+  if (!possuiLivros && !possuiPessoas && !possuiEmprestimos) {
+    return false;
+  }
+
+  let totalRegistros = 0;
+
+  if (possuiLivros) {
+    const resultado = await db.select<{ total: number }[]>(
+      `SELECT COUNT(*) AS total FROM livros`
+    );
+
+    totalRegistros += Number(resultado[0]?.total ?? 0);
+  }
+
+  if (possuiPessoas) {
+    const resultado = await db.select<{ total: number }[]>(
+      `SELECT COUNT(*) AS total FROM pessoas`
+    );
+
+    totalRegistros += Number(resultado[0]?.total ?? 0);
+  }
+
+  if (possuiEmprestimos) {
+    const resultado = await db.select<{ total: number }[]>(
+      `SELECT COUNT(*) AS total FROM emprestimos`
+    );
+
+    totalRegistros += Number(resultado[0]?.total ?? 0);
+  }
+
+  return totalRegistros > 0;
 }
 
 export async function iniciarBanco() {

@@ -461,6 +461,11 @@ function Backup() {
         "Backup restaurado com sucesso. A biblioteca será recarregada."
       );
 
+      sessionStorage.setItem(
+        "biblioteca_restauracao_confirmada",
+        "1"
+      );
+
       setTimeout(() => {
         window.location.reload();
       }, 1500);
