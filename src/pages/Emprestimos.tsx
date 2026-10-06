@@ -19,6 +19,14 @@ function formatarData(data: string | null) {
   return `${dia}/${mes}/${ano}`;
 }
 
+function normalizarTexto(texto: string) {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 function Emprestimos() {
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>([]);
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
@@ -44,6 +52,8 @@ function Emprestimos() {
 
   const [mensagemDevolucaoCodigo, setMensagemDevolucaoCodigo] =
     useState("");
+
+  const [busca, setBusca] = useState("");
 
   const [dataEmprestimo, setDataEmprestimo] = useState(hoje());
   const [dataPrevista, setDataPrevista] = useState(daquiADias(14));
@@ -460,12 +470,28 @@ function Emprestimos() {
     }
   }
 
+  function correspondeBusca(emprestimo: Emprestimo) {
+    const termo = normalizarTexto(busca);
+
+    if (!termo) return true;
+
+    return (
+      normalizarTexto(emprestimo.pessoa_nome).includes(termo) ||
+      normalizarTexto(emprestimo.livro_codigo).includes(termo) ||
+      normalizarTexto(emprestimo.livro_titulo).includes(termo)
+    );
+  }
+
   const ativos = emprestimos.filter(
-    (emprestimo) => emprestimo.data_devolucao === null
+    (emprestimo) =>
+      emprestimo.data_devolucao === null &&
+      correspondeBusca(emprestimo)
   );
 
   const historico = emprestimos.filter(
-    (emprestimo) => emprestimo.data_devolucao !== null
+    (emprestimo) =>
+      emprestimo.data_devolucao !== null &&
+      correspondeBusca(emprestimo)
   );
 
   const livrosDisponiveis = livros.filter((livro) => livro.disponivel);
@@ -501,6 +527,28 @@ function Emprestimos() {
         >
           {mostrarHistorico ? "Ocultar histórico" : "Ver histórico"}
         </button>
+      </section>
+
+      <section
+        style={{
+          marginBottom: "20px",
+        }}
+      >
+        <input
+          type="search"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por leitor, código ou título do livro..."
+          autoComplete="off"
+          style={{
+            width: "100%",
+            maxWidth: "520px",
+            padding: "11px 12px",
+            border: "1px solid #d1d5db",
+            borderRadius: "8px",
+            fontSize: "14px",
+          }}
+        />
       </section>
 
       {mostrarFormulario && (
@@ -729,7 +777,9 @@ function Emprestimos() {
             {ativos.length === 0 ? (
               <tr>
                 <td colSpan={6}>
-                  Nenhum empréstimo em aberto.
+                  {busca
+                    ? "Nenhum empréstimo encontrado para esta busca."
+                    : "Nenhum empréstimo em aberto."}
                 </td>
               </tr>
             ) : (
@@ -804,7 +854,9 @@ function Emprestimos() {
               {historico.length === 0 ? (
                 <tr>
                   <td colSpan={5}>
-                    Nenhuma devolução registrada.
+                    {busca
+                      ? "Nenhum registro encontrado para esta busca."
+                      : "Nenhuma devolução registrada."}
                   </td>
                 </tr>
               ) : (
