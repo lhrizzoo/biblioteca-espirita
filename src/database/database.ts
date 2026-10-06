@@ -106,6 +106,7 @@ export async function iniciarBanco() {
       medium TEXT NOT NULL DEFAULT '',
       editora TEXT NOT NULL DEFAULT '',
       observacao TEXT NOT NULL DEFAULT '',
+      quantidade_total INTEGER NOT NULL DEFAULT 1,
       disponivel INTEGER NOT NULL DEFAULT 1,
       ativo INTEGER NOT NULL DEFAULT 1
     )
@@ -149,9 +150,23 @@ export async function iniciarBanco() {
   await adicionarColunaSeNecessario(
     db,
     "livros",
+    "quantidade_total",
+    "INTEGER NOT NULL DEFAULT 1"
+  );
+
+  await adicionarColunaSeNecessario(
+    db,
+    "livros",
     "ativo",
     "INTEGER NOT NULL DEFAULT 1"
   );
+
+  await db.execute(`
+    UPDATE livros
+    SET quantidade_total = 1
+    WHERE quantidade_total IS NULL
+       OR quantidade_total < 1
+  `);
 
   await db.execute(`
     UPDATE livros

@@ -9,6 +9,9 @@ export type Livro = {
   medium: string;
   editora: string;
   observacao: string;
+  quantidade_total: number;
+  quantidade_emprestada: number;
+  quantidade_disponivel: number;
   disponivel: boolean;
 };
 
@@ -21,6 +24,9 @@ export type LivroBanco = {
   medium: string;
   editora: string;
   observacao: string;
+  quantidade_total: number;
+  quantidade_emprestada: number;
+  quantidade_disponivel: number;
   disponivel: number;
 };
 
