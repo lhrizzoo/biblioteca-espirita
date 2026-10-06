@@ -67,7 +67,15 @@ function Emprestimos() {
       `);
 
       const registrosLivros = await db.select<LivroBanco[]>(`
-        SELECT codigo, titulo, autor, disponivel
+        SELECT
+          codigo,
+          titulo,
+          autor,
+          espirito,
+          medium,
+          editora,
+          observacao,
+          disponivel
         FROM livros
         ORDER BY titulo
       `);
@@ -80,6 +88,10 @@ function Emprestimos() {
           codigo: livro.codigo,
           titulo: livro.titulo,
           autor: livro.autor,
+          espirito: livro.espirito ?? "",
+          medium: livro.medium ?? "",
+          editora: livro.editora ?? "",
+          observacao: livro.observacao ?? "",
           disponivel: livro.disponivel === 1,
         }))
       );
