@@ -64,6 +64,9 @@ function Emprestimos() {
   const [mensagemDevolucaoCodigo, setMensagemDevolucaoCodigo] =
     useState("");
 
+  const [emprestimosCodigoBarras, setEmprestimosCodigoBarras] =
+    useState<Emprestimo[]>([]);
+
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] =
     useState<FiltroStatus>("todos");
@@ -111,18 +114,34 @@ function Emprestimos() {
 
       const registrosLivros = await db.select<LivroBanco[]>(`
         SELECT
-          codigo,
-          codigo_barras,
-          titulo,
-          autor,
-          espirito,
-          medium,
-          editora,
-          observacao,
-          disponivel
-        FROM livros
-        WHERE ativo = 1
-        ORDER BY titulo
+          l.codigo,
+          l.codigo_barras,
+          l.titulo,
+          l.autor,
+          l.espirito,
+          l.medium,
+          l.editora,
+          l.observacao,
+          l.quantidade_total,
+          CAST((
+            SELECT COUNT(*)
+            FROM emprestimos e
+            WHERE e.livro_codigo = l.codigo
+              AND e.data_devolucao IS NULL
+          ) AS INTEGER) AS quantidade_emprestada,
+          MAX(
+            0,
+            l.quantidade_total - (
+              SELECT COUNT(*)
+              FROM emprestimos e
+              WHERE e.livro_codigo = l.codigo
+                AND e.data_devolucao IS NULL
+            )
+          ) AS quantidade_disponivel,
+          l.disponivel
+        FROM livros l
+        WHERE l.ativo = 1
+        ORDER BY l.titulo
       `);
 
       setEmprestimos(registrosEmprestimos);
@@ -138,7 +157,10 @@ function Emprestimos() {
           medium: livro.medium ?? "",
           editora: livro.editora ?? "",
           observacao: livro.observacao ?? "",
-          disponivel: livro.disponivel === 1,
+          quantidade_total: Number(livro.quantidade_total),
+          quantidade_emprestada: Number(livro.quantidade_emprestada),
+          quantidade_disponivel: Number(livro.quantidade_disponivel),
+          disponivel: Number(livro.quantidade_disponivel) > 0,
         }))
       );
     } catch (erro) {
@@ -171,6 +193,7 @@ function Emprestimos() {
   function abrirDevolucaoPorCodigo() {
     setCodigoBarrasDevolucao("");
     setMensagemDevolucaoCodigo("");
+    setEmprestimosCodigoBarras([]);
     setMostrarDevolucaoCodigo(true);
   }
 
@@ -178,6 +201,7 @@ function Emprestimos() {
     setMostrarDevolucaoCodigo(false);
     setCodigoBarrasDevolucao("");
     setMensagemDevolucaoCodigo("");
+    setEmprestimosCodigoBarras([]);
   }
 
   async function localizarLivroPorCodigoBarras() {
@@ -199,18 +223,34 @@ function Emprestimos() {
       const resultado = await db.select<LivroBanco[]>(
         `
           SELECT
-            codigo,
-            codigo_barras,
-            titulo,
-            autor,
-            espirito,
-            medium,
-            editora,
-            observacao,
-            disponivel
-          FROM livros
-          WHERE codigo_barras = $1
-            AND ativo = 1
+            l.codigo,
+            l.codigo_barras,
+            l.titulo,
+            l.autor,
+            l.espirito,
+            l.medium,
+            l.editora,
+            l.observacao,
+            l.quantidade_total,
+            CAST((
+              SELECT COUNT(*)
+              FROM emprestimos e
+              WHERE e.livro_codigo = l.codigo
+                AND e.data_devolucao IS NULL
+            ) AS INTEGER) AS quantidade_emprestada,
+            MAX(
+              0,
+              l.quantidade_total - (
+                SELECT COUNT(*)
+                FROM emprestimos e
+                WHERE e.livro_codigo = l.codigo
+                  AND e.data_devolucao IS NULL
+              )
+            ) AS quantidade_disponivel,
+            l.disponivel
+          FROM livros l
+          WHERE l.codigo_barras = $1
+            AND l.ativo = 1
           LIMIT 1
         `,
         [codigo]
@@ -224,10 +264,11 @@ function Emprestimos() {
       }
 
       const livro = resultado[0];
+      const disponiveis = Number(livro.quantidade_disponivel);
 
-      if (livro.disponivel !== 1) {
+      if (disponiveis <= 0) {
         setMensagemCodigoBarras(
-          `O livro "${livro.titulo}" já está emprestado.`
+          `O livro "${livro.titulo}" não possui exemplares disponíveis.`
         );
         return;
       }
@@ -235,7 +276,11 @@ function Emprestimos() {
       setLivroCodigo(livro.codigo);
 
       setMensagemCodigoBarras(
-        `Livro localizado: ${livro.codigo} — ${livro.titulo}`
+        `Livro localizado: ${livro.codigo} — ${livro.titulo}. ${disponiveis} ${
+          disponiveis === 1
+            ? "exemplar disponível"
+            : "exemplares disponíveis"
+        }.`
       );
     } catch (erro) {
       console.error(
@@ -253,6 +298,7 @@ function Emprestimos() {
     const codigo = codigoBarrasDevolucao.trim();
 
     setMensagemDevolucaoCodigo("");
+    setEmprestimosCodigoBarras([]);
 
     if (!codigo) {
       setMensagemDevolucaoCodigo(
@@ -302,7 +348,6 @@ function Emprestimos() {
           WHERE l.codigo_barras = $1
             AND e.data_devolucao IS NULL
           ORDER BY e.id DESC
-          LIMIT 1
         `,
         [codigo]
       );
@@ -314,13 +359,21 @@ function Emprestimos() {
         return;
       }
 
-      const emprestimo = resultado[0];
+      if (resultado.length === 1) {
+        const emprestimo = resultado[0];
 
+        setMensagemDevolucaoCodigo(
+          `Livro localizado: ${emprestimo.livro_titulo} — emprestado para ${emprestimo.pessoa_nome}.`
+        );
+
+        setEmprestimoParaDevolver(emprestimo);
+        return;
+      }
+
+      setEmprestimosCodigoBarras(resultado);
       setMensagemDevolucaoCodigo(
-        `Livro localizado: ${emprestimo.livro_titulo} — emprestado para ${emprestimo.pessoa_nome}.`
+        `Existem ${resultado.length} exemplares deste livro emprestados. Selecione abaixo qual leitor está devolvendo.`
       );
-
-      setEmprestimoParaDevolver(emprestimo);
     } catch (erro) {
       console.error(
         "Erro ao localizar empréstimo pelo código de barras:",
@@ -376,23 +429,39 @@ function Emprestimos() {
       }
 
       const disponibilidade = await db.select<
-        { disponivel: number; ativo: number }[]
+        {
+          quantidade_total: number;
+          quantidade_emprestada: number;
+          ativo: number;
+        }[]
       >(
         `
-          SELECT disponivel, ativo
-          FROM livros
-          WHERE codigo = $1
+          SELECT
+            l.quantidade_total,
+            CAST((
+              SELECT COUNT(*)
+              FROM emprestimos e
+              WHERE e.livro_codigo = l.codigo
+                AND e.data_devolucao IS NULL
+            ) AS INTEGER) AS quantidade_emprestada,
+            l.ativo
+          FROM livros l
+          WHERE l.codigo = $1
+          LIMIT 1
         `,
         [livroCodigo]
       );
 
+      const livroAtual = disponibilidade[0];
+
       if (
-        disponibilidade.length === 0 ||
-        disponibilidade[0].disponivel !== 1 ||
-        disponibilidade[0].ativo !== 1
+        !livroAtual ||
+        livroAtual.ativo !== 1 ||
+        Number(livroAtual.quantidade_emprestada) >=
+          Number(livroAtual.quantidade_total)
       ) {
         alert(
-          "Este livro não está disponível para empréstimo."
+          "Este livro não possui exemplares disponíveis para empréstimo."
         );
         await carregarDados();
         return;
@@ -422,7 +491,15 @@ function Emprestimos() {
         await db.execute(
           `
             UPDATE livros
-            SET disponivel = 0
+            SET disponivel = CASE
+              WHEN quantidade_total > (
+                SELECT COUNT(*)
+                FROM emprestimos
+                WHERE livro_codigo = $1
+                  AND data_devolucao IS NULL
+              ) THEN 1
+              ELSE 0
+            END
             WHERE codigo = $1
           `,
           [livroCodigo]
@@ -525,7 +602,15 @@ function Emprestimos() {
           await db.execute(
             `
               UPDATE livros
-              SET disponivel = 1
+              SET disponivel = CASE
+                WHEN quantidade_total > (
+                  SELECT COUNT(*)
+                  FROM emprestimos
+                  WHERE livro_codigo = $1
+                    AND data_devolucao IS NULL
+                ) THEN 1
+                ELSE 0
+              END
               WHERE codigo = $1
             `,
             [
@@ -550,6 +635,7 @@ function Emprestimos() {
       setMostrarDevolucaoCodigo(false);
       setCodigoBarrasDevolucao("");
       setMensagemDevolucaoCodigo("");
+      setEmprestimosCodigoBarras([]);
 
       await carregarDados();
 
@@ -590,7 +676,15 @@ function Emprestimos() {
         `
           UPDATE livros
           SET ativo = 1,
-              disponivel = 1
+              disponivel = CASE
+                WHEN quantidade_total > (
+                  SELECT COUNT(*)
+                  FROM emprestimos
+                  WHERE livro_codigo = $1
+                    AND data_devolucao IS NULL
+                ) THEN 1
+                ELSE 0
+              END
           WHERE codigo = $1
         `,
         [livroApagadoDevolvido.codigo]
@@ -695,7 +789,7 @@ function Emprestimos() {
 
   const livrosDisponiveis =
     livros.filter(
-      (livro) => livro.disponivel
+      (livro) => livro.quantidade_disponivel > 0
     );
 
   const livroSelecionado =
@@ -936,7 +1030,11 @@ function Emprestimos() {
                       value={livro.codigo}
                     >
                       {livro.codigo} —{" "}
-                      {livro.titulo}
+                      {livro.titulo} —{" "}
+                      {livro.quantidade_disponivel}{" "}
+                      {livro.quantidade_disponivel === 1
+                        ? "disponível"
+                        : "disponíveis"}
                     </option>
                   )
                 )}
@@ -1007,10 +1105,9 @@ function Emprestimos() {
               </span>
 
               <span>
-                Situação:{" "}
-                {livroSelecionado.disponivel
-                  ? "Disponível"
-                  : "Emprestado"}
+                Exemplares disponíveis:{" "}
+                {livroSelecionado.quantidade_disponivel} de{" "}
+                {livroSelecionado.quantidade_total}
               </span>
             </div>
           )}
@@ -1104,6 +1201,56 @@ function Emprestimos() {
                   mensagemDevolucaoCodigo
                 }
               </span>
+            </div>
+          )}
+
+          {emprestimosCodigoBarras.length > 1 && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+                marginTop: "14px",
+              }}
+            >
+              {emprestimosCodigoBarras.map(
+                (emprestimo) => (
+                  <div
+                    key={emprestimo.id}
+                    className="resumo-devolucao"
+                  >
+                    <strong>
+                      {emprestimo.pessoa_nome}
+                    </strong>
+
+                    <span>
+                      Empréstimo:{" "}
+                      {formatarData(
+                        emprestimo.data_emprestimo
+                      )}
+                    </span>
+
+                    <span>
+                      Previsão:{" "}
+                      {formatarData(
+                        emprestimo.data_prevista
+                      )}
+                    </span>
+
+                    <button
+                      type="button"
+                      className="botao-devolver"
+                      onClick={() =>
+                        setEmprestimoParaDevolver(
+                          emprestimo
+                        )
+                      }
+                    >
+                      Selecionar devolução
+                    </button>
+                  </div>
+                )
+              )}
             </div>
           )}
         </section>

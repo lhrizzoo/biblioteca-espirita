@@ -15,6 +15,7 @@ type LivroImportacao = {
   medium: string;
   editora: string;
   observacao: string;
+  quantidade_total: number;
   valido: boolean;
   motivo: string;
 };
@@ -68,6 +69,7 @@ function Livros() {
   const [medium, setMedium] = useState("");
   const [editora, setEditora] = useState("");
   const [observacao, setObservacao] = useState("");
+  const [quantidadeTotal, setQuantidadeTotal] = useState("1");
 
   const [codigoOriginal, setCodigoOriginal] = useState<string | null>(
     null
@@ -98,18 +100,34 @@ function Livros() {
 
       const registros = await db.select<LivroBanco[]>(`
         SELECT
-          codigo,
-          codigo_barras,
-          titulo,
-          autor,
-          espirito,
-          medium,
-          editora,
-          observacao,
-          disponivel
-        FROM livros
-        WHERE ativo = 1
-        ORDER BY titulo
+          l.codigo,
+          l.codigo_barras,
+          l.titulo,
+          l.autor,
+          l.espirito,
+          l.medium,
+          l.editora,
+          l.observacao,
+          l.quantidade_total,
+          CAST((
+            SELECT COUNT(*)
+            FROM emprestimos e
+            WHERE e.livro_codigo = l.codigo
+              AND e.data_devolucao IS NULL
+          ) AS INTEGER) AS quantidade_emprestada,
+          MAX(
+            0,
+            l.quantidade_total - (
+              SELECT COUNT(*)
+              FROM emprestimos e
+              WHERE e.livro_codigo = l.codigo
+                AND e.data_devolucao IS NULL
+            )
+          ) AS quantidade_disponivel,
+          l.disponivel
+        FROM livros l
+        WHERE l.ativo = 1
+        ORDER BY l.titulo
       `);
 
       setLivros(
@@ -122,7 +140,10 @@ function Livros() {
           medium: livro.medium ?? "",
           editora: livro.editora ?? "",
           observacao: livro.observacao ?? "",
-          disponivel: livro.disponivel === 1,
+          quantidade_total: Number(livro.quantidade_total),
+          quantidade_emprestada: Number(livro.quantidade_emprestada),
+          quantidade_disponivel: Number(livro.quantidade_disponivel),
+          disponivel: Number(livro.quantidade_disponivel) > 0,
         }))
       );
     } catch (erro) {
@@ -143,6 +164,7 @@ function Livros() {
     setMedium("");
     setEditora("");
     setObservacao("");
+    setQuantidadeTotal("1");
     setCodigoOriginal(null);
   }
 
@@ -162,6 +184,7 @@ function Livros() {
     setMedium(livro.medium);
     setEditora(livro.editora);
     setObservacao(livro.observacao);
+    setQuantidadeTotal(String(livro.quantidade_total));
     setMensagemExclusao("");
     setMostrarFormulario(true);
   }
@@ -174,6 +197,18 @@ function Livros() {
   async function salvarLivro() {
     if (!codigo.trim() || !titulo.trim() || !autor.trim()) {
       alert("Preencha código, título e autor.");
+      return;
+    }
+
+    const quantidade = Number(quantidadeTotal);
+
+    if (
+      !Number.isInteger(quantidade) ||
+      quantidade < 1
+    ) {
+      alert(
+        "A quantidade de exemplares deve ser um número inteiro maior ou igual a 1."
+      );
       return;
     }
 
@@ -218,7 +253,34 @@ function Livros() {
       const codigoBarrasBanco =
         codigoBarrasLimpo.length > 0 ? codigoBarrasLimpo : null;
 
-      if (editando) {
+      if (editando && codigoOriginal) {
+        const ativos = await db.select<{ total: number }[]>(
+          `
+            SELECT COUNT(*) AS total
+            FROM emprestimos
+            WHERE livro_codigo = $1
+              AND data_devolucao IS NULL
+          `,
+          [codigoOriginal]
+        );
+
+        const quantidadeEmprestada = Number(
+          ativos[0]?.total ?? 0
+        );
+
+        if (quantidade < quantidadeEmprestada) {
+          alert(
+            `Não é possível reduzir para ${quantidade} ${
+              quantidade === 1 ? "exemplar" : "exemplares"
+            }, pois existem ${quantidadeEmprestada} ${
+              quantidadeEmprestada === 1
+                ? "exemplar emprestado"
+                : "exemplares emprestados"
+            }.`
+          );
+          return;
+        }
+
         await db.execute(
           `
             UPDATE livros
@@ -230,8 +292,13 @@ function Livros() {
               espirito = $5,
               medium = $6,
               editora = $7,
-              observacao = $8
-            WHERE codigo = $9
+              observacao = $8,
+              quantidade_total = $9,
+              disponivel = CASE
+                WHEN $9 > $10 THEN 1
+                ELSE 0
+              END
+            WHERE codigo = $11
           `,
           [
             codigo.trim(),
@@ -242,6 +309,8 @@ function Livros() {
             medium.trim(),
             editora.trim(),
             observacao.trim(),
+            quantidade,
+            quantidadeEmprestada,
             codigoOriginal,
           ]
         );
@@ -257,10 +326,11 @@ function Livros() {
               medium,
               editora,
               observacao,
+              quantidade_total,
               disponivel,
               ativo
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, 1)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1, 1)
           `,
           [
             codigo.trim(),
@@ -271,6 +341,7 @@ function Livros() {
             medium.trim(),
             editora.trim(),
             observacao.trim(),
+            quantidade,
           ]
         );
       }
@@ -499,12 +570,34 @@ function Livros() {
             "obs",
           ]);
 
+          const quantidadeLinha = encontrarValor(linha, [
+            "quantidade",
+            "quantidade total",
+            "qtd",
+            "exemplares",
+            "exemplar",
+          ]);
+
+          const quantidadeImportacao =
+            quantidadeLinha === ""
+              ? 1
+              : Number(quantidadeLinha);
+
           let valido = true;
           let motivo = "";
 
           if (!codigoLinha || !tituloLinha || !autorLinha) {
             valido = false;
             motivo = "Dados obrigatórios incompletos";
+          }
+
+          if (
+            valido &&
+            (!Number.isInteger(quantidadeImportacao) ||
+              quantidadeImportacao < 1)
+          ) {
+            valido = false;
+            motivo = "Quantidade inválida";
           }
 
           const codigoNormalizado =
@@ -564,6 +657,7 @@ function Livros() {
             medium: mediumLinha,
             editora: editoraLinha,
             observacao: observacaoLinha,
+            quantidade_total: quantidadeImportacao,
             valido,
             motivo,
           };
@@ -642,10 +736,11 @@ function Livros() {
                 medium,
                 editora,
                 observacao,
+                quantidade_total,
                 disponivel,
                 ativo
               )
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, 1)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1, 1)
             `,
             [
               livro.codigo.trim(),
@@ -656,6 +751,7 @@ function Livros() {
               livro.medium.trim(),
               livro.editora.trim(),
               livro.observacao.trim(),
+              livro.quantidade_total,
             ]
           );
         }
@@ -869,6 +965,20 @@ function Livros() {
             </label>
 
             <label>
+              Quantidade de exemplares
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={quantidadeTotal}
+                onChange={(e) =>
+                  setQuantidadeTotal(e.target.value)
+                }
+                placeholder="Ex.: 1"
+              />
+            </label>
+
+            <label>
               Observação
               <input
                 value={observacao}
@@ -921,6 +1031,9 @@ function Livros() {
               <th>Espírito</th>
               <th>Médium</th>
               <th>Editora</th>
+              <th>Total</th>
+              <th>Disponíveis</th>
+              <th>Emprestados</th>
               <th>Situação</th>
               <th>Com quem está</th>
               <th>Ações</th>
@@ -930,7 +1043,7 @@ function Livros() {
           <tbody>
             {livrosFiltrados.length === 0 ? (
               <tr>
-                <td colSpan={10}>
+                <td colSpan={13}>
                   {pesquisa.trim()
                     ? "Nenhum livro encontrado."
                     : "Nenhum livro cadastrado."}
@@ -1067,6 +1180,7 @@ function Livros() {
                     <th>Espírito</th>
                     <th>Médium</th>
                     <th>Editora</th>
+                    <th>Quantidade</th>
                     <th>Validação</th>
                   </tr>
                 </thead>
@@ -1086,6 +1200,7 @@ function Livros() {
                         <td>{livro.espirito || "—"}</td>
                         <td>{livro.medium || "—"}</td>
                         <td>{livro.editora || "—"}</td>
+                        <td>{livro.quantidade_total}</td>
 
                         <td>
                           {livro.valido ? (
@@ -1155,8 +1270,8 @@ function LinhaLivro({
     useState<string>("");
 
   useEffect(() => {
-    async function buscarPessoa() {
-      if (livro.disponivel) {
+    async function buscarPessoas() {
+      if (livro.quantidade_emprestada === 0) {
         setEmprestadoPara("");
         return;
       }
@@ -1175,17 +1290,18 @@ function LinhaLivro({
             WHERE e.livro_codigo = $1
               AND e.data_devolucao IS NULL
             ORDER BY e.id DESC
-            LIMIT 1
           `,
           [livro.codigo]
         );
 
         setEmprestadoPara(
-          resultado[0]?.nome ?? "Não identificado"
+          resultado.length > 0
+            ? resultado.map((registro) => registro.nome).join(", ")
+            : "Não identificado"
         );
       } catch (erro) {
         console.error(
-          "Erro ao localizar empréstimo:",
+          "Erro ao localizar empréstimos:",
           erro
         );
 
@@ -1193,8 +1309,8 @@ function LinhaLivro({
       }
     }
 
-    buscarPessoa();
-  }, [livro.codigo, livro.disponivel]);
+    buscarPessoas();
+  }, [livro.codigo, livro.quantidade_emprestada]);
 
   return (
     <tr>
@@ -1205,23 +1321,26 @@ function LinhaLivro({
       <td>{livro.espirito || "—"}</td>
       <td>{livro.medium || "—"}</td>
       <td>{livro.editora || "—"}</td>
+      <td>{livro.quantidade_total}</td>
+      <td>{livro.quantidade_disponivel}</td>
+      <td>{livro.quantidade_emprestada}</td>
 
       <td>
         <span
           className={
-            livro.disponivel
+            livro.quantidade_disponivel > 0
               ? "disponivel"
               : "emprestado"
           }
         >
-          {livro.disponivel
+          {livro.quantidade_disponivel > 0
             ? "Disponível"
-            : "Emprestado"}
+            : "Todos emprestados"}
         </span>
       </td>
 
       <td>
-        {livro.disponivel
+        {livro.quantidade_emprestada === 0
           ? "—"
           : emprestadoPara || "Carregando..."}
       </td>
