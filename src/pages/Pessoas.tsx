@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { obterBanco } from "../database/database";
-import type { Pessoa } from "../types";
+import type { Emprestimo, Pessoa } from "../types";
+
+function formatarData(data: string | null) {
+  if (!data) return "—";
+
+  const [ano, mes, dia] = data.split("-");
+  return `${dia}/${mes}/${ano}`;
+}
 
 function Pessoas() {
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
@@ -14,6 +21,15 @@ function Pessoas() {
 
   const [pessoaParaExcluir, setPessoaParaExcluir] =
     useState<Pessoa | null>(null);
+
+  const [leitorHistorico, setLeitorHistorico] =
+    useState<Pessoa | null>(null);
+
+  const [historicoLeitor, setHistoricoLeitor] =
+    useState<Emprestimo[]>([]);
+
+  const [carregandoHistorico, setCarregandoHistorico] =
+    useState(false);
 
   const [excluindo, setExcluindo] = useState(false);
   const [mensagem, setMensagem] = useState("");
@@ -112,6 +128,61 @@ function Pessoas() {
     }
   }
 
+  async function abrirHistorico(pessoa: Pessoa) {
+    try {
+      setMensagem("");
+      setLeitorHistorico(pessoa);
+      setHistoricoLeitor([]);
+      setCarregandoHistorico(true);
+
+      const db = await obterBanco();
+
+      const registros = await db.select<Emprestimo[]>(
+        `
+          SELECT
+            e.id,
+            e.pessoa_id,
+            p.nome AS pessoa_nome,
+            e.livro_codigo,
+            l.titulo AS livro_titulo,
+            e.data_emprestimo,
+            e.data_prevista,
+            e.data_devolucao
+          FROM emprestimos e
+          INNER JOIN pessoas p
+            ON p.id = e.pessoa_id
+          INNER JOIN livros l
+            ON l.codigo = e.livro_codigo
+          WHERE e.pessoa_id = $1
+          ORDER BY e.data_emprestimo DESC, e.id DESC
+        `,
+        [pessoa.id]
+      );
+
+      setHistoricoLeitor(registros);
+    } catch (erro) {
+      console.error("Erro ao carregar histórico do leitor:", erro);
+
+      setMensagem(
+        "Não foi possível carregar o histórico deste leitor."
+      );
+
+      setLeitorHistorico(null);
+      setHistoricoLeitor([]);
+    } finally {
+      setCarregandoHistorico(false);
+    }
+  }
+
+  function fecharHistorico() {
+    if (carregandoHistorico) {
+      return;
+    }
+
+    setLeitorHistorico(null);
+    setHistoricoLeitor([]);
+  }
+
   async function solicitarExclusao(pessoa: Pessoa) {
     try {
       setMensagem("");
@@ -198,6 +269,14 @@ function Pessoas() {
       pessoa.observacao.toLowerCase().includes(termo)
     );
   });
+
+  const emprestimosAtivosHistorico = historicoLeitor.filter(
+    (emprestimo) => emprestimo.data_devolucao === null
+  ).length;
+
+  const emprestimosConcluidosHistorico = historicoLeitor.filter(
+    (emprestimo) => emprestimo.data_devolucao !== null
+  ).length;
 
   return (
     <>
@@ -322,6 +401,13 @@ function Pessoas() {
                       }}
                     >
                       <button
+                        className="botao-secundario"
+                        onClick={() => abrirHistorico(pessoa)}
+                      >
+                        Histórico
+                      </button>
+
+                      <button
                         className="botao-editar"
                         onClick={() => abrirEdicao(pessoa)}
                       >
@@ -344,6 +430,153 @@ function Pessoas() {
           </tbody>
         </table>
       </section>
+
+      {leitorHistorico && (
+        <div className="modal-fundo">
+          <div
+            className="modal"
+            style={{
+              width: "min(900px, 94vw)",
+              maxWidth: "900px",
+            }}
+          >
+            <div className="formulario-topo">
+              <div>
+                <h2>Histórico do leitor</h2>
+                <p style={{ margin: "4px 0 0 0" }}>
+                  {leitorHistorico.nome}
+                </p>
+              </div>
+
+              <button
+                className="fechar"
+                onClick={fecharHistorico}
+                disabled={carregandoHistorico}
+              >
+                ×
+              </button>
+            </div>
+
+            {carregandoHistorico ? (
+              <p>Carregando histórico...</p>
+            ) : (
+              <>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <span className="contador">
+                    {historicoLeitor.length}{" "}
+                    {historicoLeitor.length === 1
+                      ? "empréstimo"
+                      : "empréstimos"}
+                  </span>
+
+                  <span className="contador">
+                    {emprestimosAtivosHistorico} ativos
+                  </span>
+
+                  <span className="contador">
+                    {emprestimosConcluidosHistorico} devolvidos
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    overflowX: "auto",
+                  }}
+                >
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Código</th>
+                        <th>Livro</th>
+                        <th>Empréstimo</th>
+                        <th>Previsão</th>
+                        <th>Devolução</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {historicoLeitor.length === 0 ? (
+                        <tr>
+                          <td colSpan={6}>
+                            Este leitor ainda não possui
+                            empréstimos registrados.
+                          </td>
+                        </tr>
+                      ) : (
+                        historicoLeitor.map((emprestimo) => {
+                          const ativo =
+                            emprestimo.data_devolucao === null;
+
+                          return (
+                            <tr key={emprestimo.id}>
+                              <td>
+                                {emprestimo.livro_codigo}
+                              </td>
+
+                              <td>
+                                {emprestimo.livro_titulo}
+                              </td>
+
+                              <td>
+                                {formatarData(
+                                  emprestimo.data_emprestimo
+                                )}
+                              </td>
+
+                              <td>
+                                {formatarData(
+                                  emprestimo.data_prevista
+                                )}
+                              </td>
+
+                              <td>
+                                {formatarData(
+                                  emprestimo.data_devolucao
+                                )}
+                              </td>
+
+                              <td>
+                                <span
+                                  className={
+                                    ativo
+                                      ? "emprestado"
+                                      : "disponivel"
+                                  }
+                                >
+                                  {ativo
+                                    ? "Emprestado"
+                                    : "Devolvido"}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="modal-acoes">
+                  <button
+                    className="cancelar-modal"
+                    onClick={fecharHistorico}
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {pessoaParaExcluir && (
         <div className="modal-fundo">
