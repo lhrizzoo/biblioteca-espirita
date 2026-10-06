@@ -69,7 +69,7 @@ function App() {
           className={tela === "pessoas" ? "menu-ativo" : ""}
           onClick={() => setTela("pessoas")}
         >
-          Pessoas
+          Leitores
         </button>
 
         <button

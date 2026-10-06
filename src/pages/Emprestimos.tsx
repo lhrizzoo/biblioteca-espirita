@@ -281,7 +281,7 @@ function Emprestimos() {
 
           <div className="campos campos-emprestimo">
             <label>
-              Pessoa
+              Leitor
               <select
                 value={pessoaId}
                 onChange={(e) => setPessoaId(e.target.value)}
@@ -355,7 +355,7 @@ function Emprestimos() {
         <table>
           <thead>
             <tr>
-              <th>Pessoa</th>
+              <th>Leitor</th>
               <th>Livro</th>
               <th>Empréstimo</th>
               <th>Previsão</th>
@@ -418,7 +418,7 @@ function Emprestimos() {
           <table>
             <thead>
               <tr>
-                <th>Pessoa</th>
+                <th>Leitor</th>
                 <th>Livro</th>
                 <th>Empréstimo</th>
                 <th>Previsto</th>

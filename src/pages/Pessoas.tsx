@@ -32,7 +32,7 @@ function Pessoas() {
 
       setPessoas(registros);
     } catch (erro) {
-      console.error("Erro ao carregar pessoas:", erro);
+      console.error("Erro ao carregar leitores:", erro);
     }
   }
 
@@ -47,7 +47,7 @@ function Pessoas() {
     setObservacao("");
   }
 
-  function abrirNovaPessoa() {
+  function abrirNovoLeitor() {
     limparFormulario();
     setMensagem("");
     setMostrarFormulario(true);
@@ -67,9 +67,9 @@ function Pessoas() {
     setMostrarFormulario(false);
   }
 
-  async function salvarPessoa() {
+  async function salvarLeitor() {
     if (!nome.trim()) {
-      setMensagem("Informe o nome da pessoa.");
+      setMensagem("Informe o nome do leitor.");
       return;
     }
 
@@ -91,7 +91,7 @@ function Pessoas() {
           ]
         );
 
-        setMensagem("Pessoa atualizada com sucesso.");
+        setMensagem("Leitor atualizado com sucesso.");
       } else {
         await db.execute(
           `
@@ -101,14 +101,14 @@ function Pessoas() {
           [nome.trim(), telefone.trim(), observacao.trim()]
         );
 
-        setMensagem("Pessoa cadastrada com sucesso.");
+        setMensagem("Leitor cadastrado com sucesso.");
       }
 
       fecharFormulario();
       await carregarPessoas();
     } catch (erro) {
-      console.error("Erro ao salvar pessoa:", erro);
-      setMensagem("Não foi possível salvar a pessoa.");
+      console.error("Erro ao salvar leitor:", erro);
+      setMensagem("Não foi possível salvar o leitor.");
     }
   }
 
@@ -131,16 +131,16 @@ function Pessoas() {
 
       if (totalEmprestimos > 0) {
         setMensagem(
-          "Esta pessoa não pode ser excluída porque possui empréstimos ou histórico registrados."
+          "Este leitor não pode ser excluído porque possui empréstimos ou histórico registrados."
         );
         return;
       }
 
       setPessoaParaExcluir(pessoa);
     } catch (erro) {
-      console.error("Erro ao verificar pessoa:", erro);
+      console.error("Erro ao verificar leitor:", erro);
       setMensagem(
-        "Não foi possível verificar se a pessoa pode ser excluída."
+        "Não foi possível verificar se o leitor pode ser excluído."
       );
     }
   }
@@ -174,12 +174,12 @@ function Pessoas() {
 
       setPessoaParaExcluir(null);
 
-      setMensagem("Pessoa excluída com sucesso.");
+      setMensagem("Leitor excluído com sucesso.");
 
       await carregarPessoas();
     } catch (erro) {
-      console.error("Erro ao excluir pessoa:", erro);
-      setMensagem("Não foi possível excluir a pessoa.");
+      console.error("Erro ao excluir leitor:", erro);
+      setMensagem("Não foi possível excluir o leitor.");
     } finally {
       setExcluindo(false);
     }
@@ -202,8 +202,8 @@ function Pessoas() {
   return (
     <>
       <section className="acoes">
-        <button onClick={abrirNovaPessoa}>
-          + Cadastrar pessoa
+        <button onClick={abrirNovoLeitor}>
+          + Cadastrar leitor
         </button>
       </section>
 
@@ -218,8 +218,8 @@ function Pessoas() {
           <div className="formulario-topo">
             <h2>
               {editando
-                ? "Editar pessoa"
-                : "Cadastrar pessoa"}
+                ? "Editar leitor"
+                : "Cadastrar leitor"}
             </h2>
 
             <button
@@ -267,10 +267,10 @@ function Pessoas() {
               Cancelar
             </button>
 
-            <button onClick={salvarPessoa}>
+            <button onClick={salvarLeitor}>
               {editando
                 ? "Salvar alterações"
-                : "Salvar pessoa"}
+                : "Salvar leitor"}
             </button>
           </div>
         </section>
@@ -285,7 +285,7 @@ function Pessoas() {
       </section>
 
       <section className="painel">
-        <h2>Pessoas</h2>
+        <h2>Leitores</h2>
 
         <table>
           <thead>
@@ -302,8 +302,8 @@ function Pessoas() {
               <tr>
                 <td colSpan={4}>
                   {pesquisa.trim()
-                    ? "Nenhuma pessoa encontrada."
-                    : "Nenhuma pessoa cadastrada."}
+                    ? "Nenhum leitor encontrado."
+                    : "Nenhum leitor cadastrado."}
                 </td>
               </tr>
             ) : (
@@ -348,10 +348,10 @@ function Pessoas() {
       {pessoaParaExcluir && (
         <div className="modal-fundo">
           <div className="modal">
-            <h2>Excluir pessoa</h2>
+            <h2>Excluir leitor</h2>
 
             <p>
-              Tem certeza de que deseja excluir esta pessoa?
+              Tem certeza de que deseja excluir este leitor?
             </p>
 
             <div className="resumo-devolucao">
