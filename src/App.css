@@ -128,7 +128,7 @@ select:focus-visible {
   overflow: hidden;
 }
 
-/* CABEÇALHO */
+/* CABEÃ‡ALHO */
 
 .topo {
   flex-shrink: 0;
@@ -224,7 +224,7 @@ select:focus-visible {
   font-size: 13px;
 }
 
-/* CONTEÚDO */
+/* CONTEÃšDO */
 
 .conteudo {
   width: 100%;
@@ -242,8 +242,8 @@ select:focus-visible {
 }
 
 /*
-  Na tela de livros, a área principal NÃO rola.
-  Somente o painel do Acervo terá scroll.
+  Na tela de livros, a Ã¡rea principal NÃƒO rola.
+  Somente o painel do Acervo terÃ¡ scroll.
 */
 
 .conteudo-livros {
@@ -266,7 +266,7 @@ select:focus-visible {
   overflow: auto;
 }
 
-/* CABEÇALHO DO ACERVO FIXO DURANTE O SCROLL */
+/* CABEÃ‡ALHO DO ACERVO FIXO DURANTE O SCROLL */
 
 .conteudo-livros > .painel > h2 {
   position: sticky;
@@ -308,7 +308,7 @@ select:focus-visible {
   background: #9db3a4;
 }
 
-/* AÇÕES */
+/* AÃ‡Ã•ES */
 
 .acoes {
   display: flex;
@@ -379,7 +379,7 @@ select:focus-visible {
   color: var(--verde-900);
 }
 
-/* FORMULÁRIOS */
+/* FORMULÃRIOS */
 
 .formulario {
   margin-bottom: 18px;
@@ -564,7 +564,7 @@ select:focus-visible {
     0 0 0 3px rgba(62, 130, 88, 0.11);
 }
 
-/* PAINÉIS */
+/* PAINÃ‰IS */
 
 .painel {
   overflow: hidden;
@@ -719,7 +719,7 @@ tbody tr:hover {
   color: #a33b34;
 }
 
-/* BOTÕES DAS TABELAS */
+/* BOTÃ•ES DAS TABELAS */
 
 .botao-editar,
 .botao-devolver {
@@ -755,7 +755,7 @@ tbody tr:hover {
   color: #245c38;
 }
 
-/* CRÉDITO INSTITUCIONAL */
+/* CRÃ‰DITO INSTITUCIONAL */
 
 .rodape {
   position: fixed;
@@ -1363,4 +1363,1069 @@ tbody tr:hover {
   .app {
     padding-bottom: 116px;
   }
+}
+
+/* =========================================================
+   LUI-31 â€” ACERVO
+   Layout responsivo, compacto e sem scroll horizontal
+   ========================================================= */
+
+.conteudo-livros {
+  max-width: 1440px;
+  padding-top: 22px;
+}
+
+.conteudo-livros > .acoes {
+  margin-bottom: 13px;
+}
+
+.conteudo-livros > .pesquisa {
+  margin-bottom: 13px;
+}
+
+.pesquisa-acervo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.pesquisa-acervo-campo {
+  position: relative;
+  min-width: 0;
+}
+
+.pesquisa-acervo-campo input {
+  padding-left: 44px;
+}
+
+.pesquisa-acervo-icone {
+  position: absolute;
+  top: 50%;
+  left: 15px;
+  z-index: 2;
+  color: var(--verde-600);
+  font-size: 20px;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateY(-52%);
+}
+
+.pesquisa-acervo-resumo {
+  min-width: 132px;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 0 4px;
+  color: var(--texto-suave);
+  white-space: nowrap;
+}
+
+.pesquisa-acervo-resumo strong {
+  color: var(--verde-800);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.pesquisa-acervo-resumo span {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.painel-acervo {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.conteudo-livros > .painel-acervo {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.painel-acervo-topo {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 16px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.99),
+      rgba(250, 252, 251, 0.99)
+    );
+  border-bottom: 1px solid #e6ece8;
+  backdrop-filter: blur(10px);
+}
+
+.painel-acervo-topo h2 {
+  margin: 0;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 790;
+}
+
+.painel-acervo-topo p {
+  margin: 3px 0 0;
+  color: var(--texto-suave);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.contador-acervo {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 5px 10px;
+}
+
+.acervo-lista {
+  width: 100%;
+  min-width: 0;
+}
+
+.tabela-acervo {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.tabela-acervo thead {
+  position: sticky;
+  top: 60px;
+  z-index: 15;
+}
+
+.tabela-acervo th,
+.tabela-acervo td {
+  min-width: 0;
+}
+
+.tabela-acervo th {
+  padding: 9px 10px;
+}
+
+.tabela-acervo td {
+  padding: 10px;
+}
+
+.tabela-acervo th:nth-child(1) { width: 28%; }
+.tabela-acervo th:nth-child(2) { width: 21%; }
+.tabela-acervo th:nth-child(3) { width: 12%; }
+.tabela-acervo th:nth-child(4) { width: 13%; }
+.tabela-acervo th:nth-child(5) { width: 17%; }
+.tabela-acervo th:nth-child(6) { width: 9%; }
+
+.acervo-linha {
+  height: 74px;
+}
+
+.acervo-obra,
+.acervo-detalhes,
+.acervo-estoque,
+.acervo-leitores {
+  overflow-wrap: anywhere;
+}
+
+.acervo-titulo {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--texto);
+  font-size: 13px;
+  font-weight: 780;
+  line-height: 1.25;
+}
+
+.acervo-autor {
+  display: block;
+  color: #536159;
+  font-size: 11px;
+  font-weight: 620;
+  line-height: 1.25;
+}
+
+.acervo-identificadores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.acervo-identificadores span {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px 6px;
+  overflow: hidden;
+  border: 1px solid #e0e8e2;
+  border-radius: 999px;
+  background: #f6f9f7;
+  color: #66746b;
+  font-size: 9px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acervo-detalhes {
+  color: #5c6961;
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+.acervo-detalhes > span {
+  display: block;
+}
+
+.acervo-detalhes > span + span {
+  margin-top: 2px;
+}
+
+.acervo-detalhes strong {
+  color: #46534b;
+  font-weight: 730;
+}
+
+.acervo-sem-detalhes,
+.acervo-sem-emprestimo {
+  color: #9aa59e;
+  font-style: italic;
+}
+
+.acervo-estoque {
+  text-align: center;
+}
+
+.acervo-estoque strong {
+  display: block;
+  color: var(--verde-900);
+  font-size: 14px;
+  font-weight: 820;
+  line-height: 1.1;
+}
+
+.acervo-estoque > span {
+  display: block;
+  margin-top: 2px;
+  color: var(--texto-suave);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.acervo-estoque small {
+  display: block;
+  margin-top: 3px;
+  color: #7b6750;
+  font-size: 9px;
+  font-weight: 680;
+}
+
+.acervo-situacao {
+  text-align: center;
+}
+
+.acervo-situacao .disponivel,
+.acervo-situacao .emprestado {
+  width: auto;
+  max-width: 100%;
+  min-height: 24px;
+  justify-content: center;
+  padding: 4px 7px;
+  font-size: 10.5px;
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
+}
+
+.acervo-leitores {
+  color: #4f5e55;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.acervo-acoes {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.acervo-acoes button {
+  width: 100%;
+  min-width: 0;
+  min-height: 29px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.acervo-excluir {
+  color: #8b493f;
+}
+
+.acervo-excluir:hover {
+  background: #fff1ef;
+  border-color: #eccbc6;
+  color: #8b342b;
+}
+
+.acervo-vazio {
+  padding: 30px 18px !important;
+  color: var(--texto-suave);
+  text-align: center;
+  font-size: 13px;
+}
+
+@media (max-width: 1180px) {
+  .conteudo-livros {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .tabela-acervo th:nth-child(1) { width: 27%; }
+  .tabela-acervo th:nth-child(2) { width: 21%; }
+  .tabela-acervo th:nth-child(3) { width: 12%; }
+  .tabela-acervo th:nth-child(4) { width: 13%; }
+  .tabela-acervo th:nth-child(5) { width: 17%; }
+  .tabela-acervo th:nth-child(6) { width: 10%; }
+
+  .acervo-detalhes {
+    font-size: 10px;
+  }
+
+  .acervo-identificadores span {
+    font-size: 8.8px;
+  }
+}
+
+@media (max-width: 900px) {
+  .conteudo-livros {
+    padding-top: 18px;
+  }
+
+  .pesquisa-acervo {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .pesquisa-acervo-resumo {
+    min-width: 0;
+    justify-content: flex-start;
+    padding-left: 3px;
+  }
+
+  .painel-acervo-topo {
+    min-height: 54px;
+    padding: 9px 12px;
+  }
+
+  .painel-acervo-topo p {
+    display: none;
+  }
+
+  .tabela-acervo thead {
+    top: 54px;
+  }
+
+  .tabela-acervo th {
+    padding: 8px 7px;
+    font-size: 9.5px;
+  }
+
+  .tabela-acervo td {
+    padding: 9px 7px;
+  }
+
+  .tabela-acervo th:nth-child(1) { width: 27%; }
+  .tabela-acervo th:nth-child(2) { width: 20%; }
+  .tabela-acervo th:nth-child(3) { width: 12%; }
+  .tabela-acervo th:nth-child(4) { width: 13%; }
+  .tabela-acervo th:nth-child(5) { width: 17%; }
+  .tabela-acervo th:nth-child(6) { width: 11%; }
+
+  .acervo-titulo {
+    font-size: 12px;
+  }
+
+  .acervo-autor,
+  .acervo-leitores {
+    font-size: 10px;
+  }
+
+  .acervo-detalhes {
+    font-size: 9.5px;
+  }
+
+  .acervo-situacao .disponivel,
+  .acervo-situacao .emprestado {
+    padding: 4px 5px;
+    font-size: 9.5px;
+  }
+
+  .acervo-acoes button {
+    min-height: 27px;
+    padding: 3px 4px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 760px) {
+  .conteudo-livros {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .tabela-acervo th:nth-child(1) { width: 28%; }
+  .tabela-acervo th:nth-child(2) { width: 19%; }
+  .tabela-acervo th:nth-child(3) { width: 12%; }
+  .tabela-acervo th:nth-child(4) { width: 13%; }
+  .tabela-acervo th:nth-child(5) { width: 16%; }
+  .tabela-acervo th:nth-child(6) { width: 12%; }
+
+  .acervo-identificadores span {
+    white-space: normal;
+    line-height: 1.1;
+  }
+
+  .acervo-estoque strong {
+    font-size: 12px;
+  }
+
+  .acervo-estoque > span,
+  .acervo-estoque small {
+    font-size: 8.5px;
+  }
+}
+
+/* =========================================================
+   LUI-31 â€” EMPRÃ‰STIMOS v2
+   ComposiÃ§Ã£o mais compacta e equilibrada
+   ========================================================= */
+
+.acoes-emprestimos {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.acoes-emprestimos button {
+  min-height: 38px;
+  padding: 8px 15px;
+  font-size: 12px;
+}
+
+.filtros-emprestimos {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  max-width: 760px;
+  margin-bottom: 14px;
+}
+
+.filtros-emprestimos label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--texto);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.filtro-emprestimos-busca {
+  flex: 1 1 500px;
+  min-width: 280px;
+}
+
+.filtro-emprestimos-status {
+  flex: 0 0 210px;
+}
+
+.filtro-emprestimos-campo {
+  width: 100%;
+}
+
+.filtro-emprestimos-campo input,
+.filtro-emprestimos-status select {
+  width: 100%;
+  min-height: 38px;
+  margin: 0;
+  padding: 8px 11px;
+  font-size: 12px;
+}
+
+.filtro-emprestimos-icone {
+  display: none;
+}
+
+.campo-acao-emprestimo {
+  display: flex;
+  align-items: end;
+}
+
+.lista-devolucoes-codigo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.painel-emprestimos {
+  overflow: hidden;
+}
+
+.painel-emprestimos .painel-titulo {
+  min-height: 52px;
+  padding: 10px 14px;
+}
+
+.painel-emprestimos .painel-titulo h2,
+.painel-emprestimos > h2 {
+  font-size: 16px;
+}
+
+.painel-emprestimos .contador {
+  padding: 4px 9px;
+  font-size: 10px;
+}
+
+.tabela-emprestimos {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.tabela-emprestimos th {
+  padding: 8px 14px;
+  font-size: 10px;
+}
+
+.tabela-emprestimos td {
+  padding: 10px 14px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.tabela-emprestimos th:nth-child(1) { width: 18%; }
+.tabela-emprestimos th:nth-child(2) { width: 34%; }
+.tabela-emprestimos th:nth-child(3) { width: 13%; }
+.tabela-emprestimos th:nth-child(4) { width: 13%; }
+.tabela-emprestimos th:nth-child(5) { width: 12%; }
+.tabela-emprestimos th:nth-child(6) { width: 10%; }
+
+.tabela-emprestimos td:nth-child(3),
+.tabela-emprestimos td:nth-child(4),
+.tabela-emprestimos td:nth-child(5),
+.tabela-emprestimos td:nth-child(6),
+.tabela-emprestimos th:nth-child(3),
+.tabela-emprestimos th:nth-child(4),
+.tabela-emprestimos th:nth-child(5),
+.tabela-emprestimos th:nth-child(6) {
+  text-align: center;
+}
+
+.tabela-emprestimos .emprestado,
+.tabela-emprestimos .status-atrasado,
+.tabela-emprestimos .disponivel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 68px;
+  min-height: 24px;
+  padding: 3px 8px;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tabela-emprestimos .botao-devolver {
+  width: auto;
+  min-width: 68px;
+  min-height: 29px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+
+.tabela-historico-emprestimos th:nth-child(1) { width: 18%; }
+.tabela-historico-emprestimos th:nth-child(2) { width: 31%; }
+.tabela-historico-emprestimos th:nth-child(3) { width: 13%; }
+.tabela-historico-emprestimos th:nth-child(4) { width: 13%; }
+.tabela-historico-emprestimos th:nth-child(5) { width: 14%; }
+.tabela-historico-emprestimos th:nth-child(6) { width: 11%; }
+
+.painel-historico.painel-emprestimos > h2 {
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e6ece8;
+}
+
+@media (max-width: 900px) {
+  .filtros-emprestimos {
+    max-width: none;
+  }
+
+  .filtro-emprestimos-status {
+    flex-basis: 190px;
+  }
+
+  .tabela-emprestimos th,
+  .tabela-emprestimos td {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+}
+
+@media (max-width: 680px) {
+  .acoes-emprestimos button {
+    min-height: 34px;
+    padding: 7px 10px;
+    font-size: 10.5px;
+  }
+
+  .filtros-emprestimos {
+    gap: 8px;
+  }
+
+  .filtro-emprestimos-busca {
+    min-width: 0;
+  }
+
+  .filtro-emprestimos-status {
+    flex-basis: 160px;
+  }
+
+  .tabela-emprestimos th {
+    padding: 7px 5px;
+    font-size: 9px;
+  }
+
+  .tabela-emprestimos td {
+    padding: 8px 5px;
+    font-size: 10px;
+  }
+
+  .tabela-emprestimos .emprestado,
+  .tabela-emprestimos .status-atrasado,
+  .tabela-emprestimos .disponivel,
+  .tabela-emprestimos .botao-devolver {
+    min-width: 0;
+    padding-right: 4px;
+    padding-left: 4px;
+    font-size: 9px;
+  }
+}
+
+/* =========================================================
+   LUI-31 â€” PADRONIZAÃ‡ÃƒO GLOBAL FINAL
+   Tipografia, controles, espaÃ§amentos e ritmo visual
+   ========================================================= */
+
+:root {
+  --ui-fonte-xs: 10px;
+  --ui-fonte-sm: 12px;
+  --ui-fonte-base: 13px;
+  --ui-fonte-md: 14px;
+  --ui-fonte-lg: 16px;
+  --ui-fonte-xl: 20px;
+
+  --ui-gap-xs: 6px;
+  --ui-gap-sm: 10px;
+  --ui-gap-md: 14px;
+  --ui-gap-lg: 18px;
+  --ui-gap-xl: 24px;
+
+  --ui-altura-controle: 38px;
+  --ui-raio-controle: 8px;
+}
+
+/* Texto geral */
+body,
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+body {
+  font-size: var(--ui-fonte-base);
+  line-height: 1.45;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h2 {
+  font-size: var(--ui-fonte-lg);
+  line-height: 1.25;
+}
+
+h3 {
+  font-size: var(--ui-fonte-md);
+  line-height: 1.3;
+}
+
+/* BotÃµes */
+button {
+  min-height: var(--ui-altura-controle);
+  padding: 8px 14px;
+  border-radius: var(--ui-raio-controle);
+  font-size: var(--ui-fonte-sm);
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+/* Campos */
+input,
+select,
+textarea {
+  box-sizing: border-box;
+  font-size: var(--ui-fonte-sm);
+}
+
+input,
+select {
+  min-height: var(--ui-altura-controle);
+  padding: 8px 11px;
+  border-radius: var(--ui-raio-controle);
+}
+
+textarea {
+  min-height: 86px;
+  padding: 9px 11px;
+  border-radius: var(--ui-raio-controle);
+  line-height: 1.4;
+}
+
+label {
+  font-size: var(--ui-fonte-sm);
+}
+
+/* AÃ§Ãµes superiores */
+.acoes,
+.acoes-emprestimos {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ui-gap-sm);
+  margin-bottom: var(--ui-gap-md);
+}
+
+.acoes button,
+.acoes-emprestimos button {
+  min-height: var(--ui-altura-controle);
+  padding: 8px 14px;
+  font-size: var(--ui-fonte-sm);
+}
+
+/* PainÃ©is */
+.painel {
+  margin-bottom: var(--ui-gap-lg);
+}
+
+.painel-titulo {
+  gap: var(--ui-gap-md);
+  padding: 11px 14px;
+}
+
+.painel-titulo h2,
+.painel > h2 {
+  font-size: var(--ui-fonte-lg);
+}
+
+.contador {
+  font-size: var(--ui-fonte-xs);
+}
+
+/* Tabelas: mesma escala tipogrÃ¡fica em todo o sistema */
+table {
+  font-size: var(--ui-fonte-sm);
+}
+
+th {
+  padding: 9px 12px;
+  font-size: var(--ui-fonte-xs);
+  line-height: 1.2;
+}
+
+td {
+  padding: 10px 12px;
+  font-size: var(--ui-fonte-sm);
+  line-height: 1.4;
+}
+
+/* FormulÃ¡rios */
+.formulario {
+  margin-bottom: var(--ui-gap-lg);
+  padding: var(--ui-gap-lg);
+}
+
+.formulario-topo {
+  gap: var(--ui-gap-md);
+  margin-bottom: var(--ui-gap-md);
+}
+
+.formulario-topo h2 {
+  margin-bottom: 0;
+  font-size: var(--ui-fonte-lg);
+}
+
+.campos {
+  gap: var(--ui-gap-md);
+}
+
+.campos label {
+  gap: var(--ui-gap-xs);
+  font-size: var(--ui-fonte-sm);
+}
+
+.formulario-acoes {
+  gap: var(--ui-gap-sm);
+  margin-top: var(--ui-gap-lg);
+}
+
+/* Modais */
+.modal {
+  padding: var(--ui-gap-xl);
+}
+
+.modal h2 {
+  margin-bottom: var(--ui-gap-md);
+  font-size: var(--ui-fonte-lg);
+}
+
+.modal p {
+  margin-bottom: var(--ui-gap-md);
+  font-size: var(--ui-fonte-sm);
+  line-height: 1.5;
+}
+
+.modal-acoes {
+  gap: var(--ui-gap-sm);
+  margin-top: var(--ui-gap-lg);
+}
+
+.resumo-devolucao {
+  gap: var(--ui-gap-xs);
+  padding: 12px 14px;
+  font-size: var(--ui-fonte-sm);
+}
+
+/* Estados e etiquetas */
+.disponivel,
+.emprestado,
+.status-atrasado {
+  font-size: var(--ui-fonte-xs);
+  line-height: 1.15;
+}
+
+/* Acervo */
+.painel-acervo th,
+.painel-acervo td {
+  font-size: var(--ui-fonte-sm);
+}
+
+.painel-acervo th {
+  font-size: var(--ui-fonte-xs);
+}
+
+/* EmprÃ©stimos */
+.filtros-emprestimos {
+  gap: var(--ui-gap-sm);
+  margin-bottom: var(--ui-gap-md);
+}
+
+.filtros-emprestimos label {
+  gap: var(--ui-gap-xs);
+  font-size: var(--ui-fonte-sm);
+}
+
+.filtro-emprestimos-campo input,
+.filtro-emprestimos-status select {
+  min-height: var(--ui-altura-controle);
+  padding: 8px 11px;
+  font-size: var(--ui-fonte-sm);
+}
+
+.tabela-emprestimos th {
+  padding: 9px 12px;
+  font-size: var(--ui-fonte-xs);
+}
+
+.tabela-emprestimos td {
+  padding: 10px 12px;
+  font-size: var(--ui-fonte-sm);
+  line-height: 1.4;
+}
+
+.tabela-emprestimos .emprestado,
+.tabela-emprestimos .status-atrasado,
+.tabela-emprestimos .disponivel {
+  font-size: var(--ui-fonte-xs);
+}
+
+.tabela-emprestimos .botao-devolver {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: var(--ui-fonte-sm);
+}
+
+/* NavegaÃ§Ã£o e rodapÃ© */
+nav button,
+.navegacao button {
+  font-size: var(--ui-fonte-sm);
+}
+
+footer,
+.rodape {
+  font-size: var(--ui-fonte-sm);
+  line-height: 1.4;
+}
+
+/* Telas menores: mantÃ©m a mesma hierarquia sem encolher demais */
+@media (max-width: 780px) {
+  :root {
+    --ui-fonte-sm: 11px;
+    --ui-fonte-base: 12px;
+    --ui-fonte-md: 13px;
+    --ui-fonte-lg: 15px;
+    --ui-altura-controle: 36px;
+  }
+
+  th {
+    padding-right: 7px;
+    padding-left: 7px;
+  }
+
+  td {
+    padding-right: 7px;
+    padding-left: 7px;
+  }
+
+  .formulario {
+    padding: var(--ui-gap-md);
+  }
+
+  .modal {
+    padding: var(--ui-gap-lg);
+  }
+}
+
+/* =========================================================
+   LUI-31 â€” AUTOCOMPLETE DE LEITOR
+   ========================================================= */
+
+.campo-leitor-pesquisavel {
+  position: relative;
+  min-width: 0;
+  z-index: 20;
+}
+
+.campo-leitor-pesquisavel > input {
+  width: 100%;
+}
+
+.resultados-leitor {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 5px;
+  background: #ffffff;
+  border: 1px solid var(--ui-borda, #d7e0da);
+  border-radius: var(--ui-raio, 8px);
+  box-shadow: 0 12px 28px rgba(20, 55, 38, 0.14);
+}
+
+.resultados-leitor .resultado-leitor {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  height: auto;
+  margin: 0;
+  padding: 8px 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.resultados-leitor .resultado-leitor + .resultado-leitor {
+  border-top: 1px solid #edf1ee;
+  border-radius: 0;
+}
+
+.resultados-leitor .resultado-leitor:hover,
+.resultados-leitor .resultado-leitor:focus-visible,
+.resultados-leitor .resultado-leitor.ativo {
+  background: #f0f6f2;
+  color: inherit;
+  outline: none;
+}
+
+.resultados-leitor .resultado-leitor strong {
+  display: block;
+  width: 100%;
+  font-size: var(--ui-fonte-base);
+  line-height: 1.3;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.resultados-leitor .resultado-leitor span {
+  display: block;
+  width: 100%;
+  font-size: var(--ui-fonte-sm);
+  line-height: 1.3;
+  font-weight: 500;
+  color: #6c7971;
+  overflow-wrap: anywhere;
+}
+
+.resultado-leitor-vazio {
+  display: block;
+  padding: 10px;
+  font-size: var(--ui-fonte-sm);
+  line-height: 1.4;
+  color: #6c7971;
+}
+
+.leitor-selecionado {
+  display: block;
+  margin-top: 5px;
+  font-size: var(--ui-fonte-sm);
+  line-height: 1.35;
+  color: #557064;
+}
+
+/* A lista flutua sobre os demais campos, sem aumentar o formulÃ¡rio. */
+.campos-emprestimo {
+  overflow: visible;
+}
+
+.formulario {
+  overflow: visible;
 }

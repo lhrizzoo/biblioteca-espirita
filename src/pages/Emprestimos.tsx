@@ -2,14 +2,22 @@ import { useEffect, useState } from "react";
 import { obterBanco } from "../database/database";
 import type { Emprestimo, Livro, LivroBanco, Pessoa } from "../types";
 
+function formatarDataLocal(data: Date) {
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, "0");
+  const dia = String(data.getDate()).padStart(2, "0");
+
+  return `${ano}-${mes}-${dia}`;
+}
+
 function hoje() {
-  return new Date().toISOString().split("T")[0];
+  return formatarDataLocal(new Date());
 }
 
 function daquiADias(dias: number) {
   const data = new Date();
   data.setDate(data.getDate() + dias);
-  return data.toISOString().split("T")[0];
+  return formatarDataLocal(data);
 }
 
 function formatarData(data: string | null) {
@@ -50,6 +58,9 @@ function Emprestimos() {
     useState(false);
 
   const [pessoaId, setPessoaId] = useState("");
+  const [buscaLeitor, setBuscaLeitor] = useState("");
+  const [mostrarResultadosLeitor, setMostrarResultadosLeitor] =
+    useState(false);
   const [livroCodigo, setLivroCodigo] = useState("");
 
   const [codigoBarrasEmprestimo, setCodigoBarrasEmprestimo] =
@@ -174,6 +185,8 @@ function Emprestimos() {
 
   function abrirNovoEmprestimo() {
     setPessoaId("");
+    setBuscaLeitor("");
+    setMostrarResultadosLeitor(false);
     setLivroCodigo("");
     setCodigoBarrasEmprestimo("");
     setMensagemCodigoBarras("");
@@ -185,6 +198,8 @@ function Emprestimos() {
   function fecharFormulario() {
     setMostrarFormulario(false);
     setPessoaId("");
+    setBuscaLeitor("");
+    setMostrarResultadosLeitor(false);
     setLivroCodigo("");
     setCodigoBarrasEmprestimo("");
     setMensagemCodigoBarras("");
@@ -295,39 +310,21 @@ function Emprestimos() {
   }
 
   async function localizarEmprestimoPorCodigoBarras() {
-    const codigo = codigoBarrasDevolucao.trim();
+    const termo = codigoBarrasDevolucao.trim();
 
     setMensagemDevolucaoCodigo("");
     setEmprestimosCodigoBarras([]);
 
-    if (!codigo) {
+    if (!termo) {
       setMensagemDevolucaoCodigo(
-        "Digite ou passe um código de barras no leitor."
+        "Digite o código de barras, código interno ou título do livro."
       );
       return;
     }
 
     try {
       const db = await obterBanco();
-
-      const livroEncontrado = await db.select<
-        { codigo: string; titulo: string }[]
-      >(
-        `
-          SELECT codigo, titulo
-          FROM livros
-          WHERE codigo_barras = $1
-          LIMIT 1
-        `,
-        [codigo]
-      );
-
-      if (livroEncontrado.length === 0) {
-        setMensagemDevolucaoCodigo(
-          "Nenhum livro foi encontrado com este código de barras."
-        );
-        return;
-      }
+      const termoNormalizado = `%${termo.toLowerCase()}%`;
 
       const resultado = await db.select<Emprestimo[]>(
         `
@@ -345,16 +342,28 @@ function Emprestimos() {
             ON p.id = e.pessoa_id
           INNER JOIN livros l
             ON l.codigo = e.livro_codigo
-          WHERE l.codigo_barras = $1
-            AND e.data_devolucao IS NULL
-          ORDER BY e.id DESC
+          WHERE e.data_devolucao IS NULL
+            AND (
+              l.codigo_barras = $1
+              OR LOWER(l.codigo) = LOWER($1)
+              OR LOWER(l.titulo) LIKE $2
+            )
+          ORDER BY
+            CASE
+              WHEN l.codigo_barras = $1 THEN 0
+              WHEN LOWER(l.codigo) = LOWER($1) THEN 1
+              ELSE 2
+            END,
+            l.titulo,
+            p.nome,
+            e.id DESC
         `,
-        [codigo]
+        [termo, termoNormalizado]
       );
 
       if (resultado.length === 0) {
         setMensagemDevolucaoCodigo(
-          `O livro "${livroEncontrado[0].titulo}" não possui empréstimo ativo.`
+          "Nenhum empréstimo ativo foi encontrado para esta busca."
         );
         return;
       }
@@ -372,11 +381,11 @@ function Emprestimos() {
 
       setEmprestimosCodigoBarras(resultado);
       setMensagemDevolucaoCodigo(
-        `Existem ${resultado.length} exemplares deste livro emprestados. Selecione abaixo qual leitor está devolvendo.`
+        `Foram encontrados ${resultado.length} empréstimos ativos. Selecione abaixo o livro e o leitor corretos.`
       );
     } catch (erro) {
       console.error(
-        "Erro ao localizar empréstimo pelo código de barras:",
+        "Erro ao localizar empréstimo para devolução:",
         erro
       );
 
@@ -397,9 +406,26 @@ function Emprestimos() {
       return;
     }
 
+    const dataAtual = hoje();
+
+    if (dataEmprestimo !== dataAtual) {
+      alert(
+        `A data do empréstimo deve ser hoje (${formatarData(dataAtual)}).`
+      );
+      setDataEmprestimo(dataAtual);
+      return;
+    }
+
     if (dataPrevista < dataEmprestimo) {
       alert(
         "A previsão de devolução não pode ser anterior à data do empréstimo."
+      );
+      return;
+    }
+
+    if (dataPrevista < dataAtual) {
+      alert(
+        "A previsão de devolução não pode estar no passado."
       );
       return;
     }
@@ -464,6 +490,23 @@ function Emprestimos() {
           "Este livro não possui exemplares disponíveis para empréstimo."
         );
         await carregarDados();
+        return;
+      }
+
+      const dataAtualBanco = hoje();
+
+      if (dataEmprestimo !== dataAtualBanco) {
+        alert(
+          "A data do empréstimo ficou desatualizada. O empréstimo deve ser registrado com a data de hoje."
+        );
+        setDataEmprestimo(dataAtualBanco);
+        return;
+      }
+
+      if (dataPrevista < dataAtualBanco) {
+        alert(
+          "A previsão de devolução não pode estar no passado."
+        );
         return;
       }
 
@@ -544,6 +587,25 @@ function Emprestimos() {
       return;
     }
 
+    const dataAtual = hoje();
+
+    if (emprestimoParaDevolver.data_emprestimo > dataAtual) {
+      alert(
+        "Este empréstimo está registrado com uma data futura e não pode ser devolvido ainda. Corrija o registro antes de continuar."
+      );
+      return;
+    }
+
+    if (
+      emprestimoParaDevolver.data_devolucao &&
+      emprestimoParaDevolver.data_devolucao > dataAtual
+    ) {
+      alert(
+        "A data de devolução registrada está no futuro. Corrija o registro antes de continuar."
+      );
+      return;
+    }
+
     setDevolvendo(true);
 
     try {
@@ -580,9 +642,10 @@ function Emprestimos() {
             SET data_devolucao = $1
             WHERE id = $2
               AND data_devolucao IS NULL
+              AND data_emprestimo <= $1
           `,
           [
-            hoje(),
+            dataAtual,
             emprestimoParaDevolver.id,
           ]
         );
@@ -787,6 +850,25 @@ function Emprestimos() {
         emprestimo.data_devolucao !== null
     );
 
+  const leitoresFiltrados = pessoas
+    .filter((pessoa) => {
+      const termo = normalizarTexto(buscaLeitor);
+
+      if (!termo) {
+        return true;
+      }
+
+      return (
+        normalizarTexto(pessoa.nome).includes(termo) ||
+        normalizarTexto(pessoa.telefone ?? "").includes(termo)
+      );
+    })
+    .slice(0, 8);
+
+  const leitorSelecionado = pessoas.find(
+    (pessoa) => String(pessoa.id) === pessoaId
+  );
+
   const livrosDisponiveis =
     livros.filter(
       (livro) => livro.quantidade_disponivel > 0
@@ -808,7 +890,7 @@ function Emprestimos() {
 
   return (
     <>
-      <section className="acoes">
+      <section className="acoes acoes-emprestimos">
         <button
           onClick={abrirNovoEmprestimo}
         >
@@ -819,7 +901,7 @@ function Emprestimos() {
           className="botao-secundario"
           onClick={abrirDevolucaoPorCodigo}
         >
-          Devolver por código de barras
+          Devolver livro
         </button>
 
         <button
@@ -836,53 +918,30 @@ function Emprestimos() {
         </button>
       </section>
 
-      <section
-        style={{
-          marginBottom: "20px",
-          display: "flex",
-          gap: "12px",
-          flexWrap: "wrap",
-          alignItems: "end",
-        }}
-      >
-        <label
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "6px",
-            width: "100%",
-            maxWidth: "520px",
-          }}
-        >
-          Buscar
-          <input
-            type="search"
-            value={busca}
-            onChange={(e) =>
-              setBusca(e.target.value)
-            }
-            placeholder="Buscar por leitor, código ou título do livro..."
-            autoComplete="off"
-            style={{
-              width: "100%",
-              padding: "11px 12px",
-              border:
-                "1px solid #d1d5db",
-              borderRadius: "8px",
-              fontSize: "14px",
-            }}
-          />
+      <section className="filtros-emprestimos">
+        <label className="filtro-emprestimos-busca">
+          <span>Buscar</span>
+          <div className="filtro-emprestimos-campo">
+            <span
+              className="filtro-emprestimos-icone"
+              aria-hidden="true"
+            >
+              ⌕
+            </span>
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) =>
+                setBusca(e.target.value)
+              }
+              placeholder="Buscar por leitor, código ou título do livro..."
+              autoComplete="off"
+            />
+          </div>
         </label>
 
-        <label
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "6px",
-            minWidth: "220px",
-          }}
-        >
-          Status
+        <label className="filtro-emprestimos-status">
+          <span>Status</span>
           <select
             value={filtroStatus}
             onChange={(e) =>
@@ -891,14 +950,6 @@ function Emprestimos() {
                   .value as FiltroStatus
               )
             }
-            style={{
-              padding: "11px 12px",
-              border:
-                "1px solid #d1d5db",
-              borderRadius: "8px",
-              fontSize: "14px",
-              background: "white",
-            }}
           >
             <option value="todos">
               Todos
@@ -959,12 +1010,7 @@ function Emprestimos() {
               />
             </label>
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: "end",
-              }}
-            >
+            <div className="campo-acao-emprestimo">
               <button
                 type="button"
                 className="botao-secundario"
@@ -976,32 +1022,73 @@ function Emprestimos() {
               </button>
             </div>
 
-            <label>
+            <label className="campo-leitor-pesquisavel">
               Leitor
 
-              <select
-                value={pessoaId}
-                onChange={(e) =>
-                  setPessoaId(
-                    e.target.value
+              <input
+                type="search"
+                value={buscaLeitor}
+                onChange={(e) => {
+                  const valor = e.target.value;
+                  setBuscaLeitor(valor);
+                  setPessoaId("");
+                  setMostrarResultadosLeitor(
+                    valor.trim().length > 0
+                  );
+                }}
+                onFocus={() =>
+                  setMostrarResultadosLeitor(
+                    buscaLeitor.trim().length > 0 &&
+                      !pessoaId
                   )
                 }
-              >
-                <option value="">
-                  Selecione...
-                </option>
+                onBlur={() => {
+                  window.setTimeout(() => {
+                    setMostrarResultadosLeitor(false);
+                  }, 150);
+                }}
+                placeholder="Digite o nome ou telefone do leitor"
+                autoComplete="off"
+              />
 
-                {pessoas.map(
-                  (pessoa) => (
-                    <option
-                      key={pessoa.id}
-                      value={pessoa.id}
-                    >
-                      {pessoa.nome}
-                    </option>
-                  )
-                )}
-              </select>
+              {leitorSelecionado && !mostrarResultadosLeitor && (
+                <span className="leitor-selecionado">
+                  Selecionado: {leitorSelecionado.nome}
+                </span>
+              )}
+
+              {mostrarResultadosLeitor &&
+                buscaLeitor.trim().length > 0 && (
+                <div className="resultados-leitor">
+                  {leitoresFiltrados.length === 0 ? (
+                    <span className="resultado-leitor-vazio">
+                      Nenhum leitor encontrado.
+                    </span>
+                  ) : (
+                    leitoresFiltrados.map((pessoa) => (
+                      <button
+                        key={pessoa.id}
+                        type="button"
+                        className={
+                          String(pessoa.id) === pessoaId
+                            ? "resultado-leitor ativo"
+                            : "resultado-leitor"
+                        }
+                        onClick={() => {
+                          setPessoaId(String(pessoa.id));
+                          setBuscaLeitor(pessoa.nome);
+                          setMostrarResultadosLeitor(false);
+                        }}
+                      >
+                        <strong>{pessoa.nome}</strong>
+                        {pessoa.telefone && (
+                          <span>{pessoa.telefone}</span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </label>
 
             <label>
@@ -1135,8 +1222,7 @@ function Emprestimos() {
         <section className="formulario">
           <div className="formulario-topo">
             <h2>
-              Devolver por código de
-              barras
+              Devolver livro
             </h2>
 
             <button
@@ -1151,7 +1237,7 @@ function Emprestimos() {
 
           <div className="campos">
             <label>
-              Código de barras
+              Localizar livro
 
               <input
                 value={
@@ -1170,18 +1256,13 @@ function Emprestimos() {
                     localizarEmprestimoPorCodigoBarras();
                   }
                 }}
-                placeholder="Digite ou passe o livro no leitor"
+                placeholder="Código de barras, código interno ou título"
                 autoComplete="off"
                 autoFocus
               />
             </label>
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: "end",
-              }}
-            >
+            <div className="campo-acao-emprestimo">
               <button
                 type="button"
                 className="botao-secundario"
@@ -1205,14 +1286,7 @@ function Emprestimos() {
           )}
 
           {emprestimosCodigoBarras.length > 1 && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                marginTop: "14px",
-              }}
-            >
+            <div className="lista-devolucoes-codigo">
               {emprestimosCodigoBarras.map(
                 (emprestimo) => (
                   <div
@@ -1220,8 +1294,16 @@ function Emprestimos() {
                     className="resumo-devolucao"
                   >
                     <strong>
-                      {emprestimo.pessoa_nome}
+                      {emprestimo.livro_titulo}
                     </strong>
+
+                    <span>
+                      Código: {emprestimo.livro_codigo}
+                    </span>
+
+                    <span>
+                      Leitor: {emprestimo.pessoa_nome}
+                    </span>
 
                     <span>
                       Empréstimo:{" "}
@@ -1257,7 +1339,7 @@ function Emprestimos() {
       )}
 
       {mostrarSecaoAbertos && (
-        <section className="painel">
+        <section className="painel painel-emprestimos">
           <div className="painel-titulo">
             <h2>
               {filtroStatus ===
@@ -1277,7 +1359,7 @@ function Emprestimos() {
             </span>
           </div>
 
-          <table>
+          <table className="tabela-emprestimos">
             <thead>
               <tr>
                 <th>Leitor</th>
@@ -1379,12 +1461,12 @@ function Emprestimos() {
       )}
 
       {mostrarSecaoHistorico && (
-        <section className="painel painel-historico">
+        <section className="painel painel-historico painel-emprestimos">
           <h2>
             Histórico de devoluções
           </h2>
 
-          <table>
+          <table className="tabela-emprestimos tabela-historico-emprestimos">
             <thead>
               <tr>
                 <th>Leitor</th>

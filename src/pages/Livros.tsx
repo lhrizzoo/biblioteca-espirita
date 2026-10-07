@@ -1007,62 +1007,78 @@ function Livros() {
         </section>
       )}
 
-      <section className="pesquisa">
-        <input
-          value={pesquisa}
-          onChange={(e) =>
-            setPesquisa(e.target.value)
-          }
-          placeholder="Pesquisar por código, código de barras, título, autor, espírito, médium ou editora..."
-          autoComplete="off"
-        />
+      <section className="pesquisa pesquisa-acervo">
+        <div className="pesquisa-acervo-campo">
+          <span className="pesquisa-acervo-icone" aria-hidden="true">⌕</span>
+          <input
+            value={pesquisa}
+            onChange={(e) =>
+              setPesquisa(e.target.value)
+            }
+            placeholder="Pesquisar no acervo por título, autor, código, código de barras, espírito, médium ou editora..."
+            autoComplete="off"
+          />
+        </div>
+
+        <div className="pesquisa-acervo-resumo">
+          <strong>{livrosFiltrados.length}</strong>
+          <span>
+            {livrosFiltrados.length === 1
+              ? "obra encontrada"
+              : "obras encontradas"}
+          </span>
+        </div>
       </section>
 
-      <section className="painel">
-        <h2>Acervo</h2>
+      <section className="painel painel-acervo">
+        <div className="painel-acervo-topo">
+          <div>
+            <h2>Acervo</h2>
+            <p>Consulte as obras, a disponibilidade e os empréstimos atuais.</p>
+          </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Código</th>
-              <th>Cód. barras</th>
-              <th>Livro</th>
-              <th>Autor</th>
-              <th>Espírito</th>
-              <th>Médium</th>
-              <th>Editora</th>
-              <th>Total</th>
-              <th>Disponíveis</th>
-              <th>Emprestados</th>
-              <th>Situação</th>
-              <th>Com quem está</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
+          <span className="contador contador-acervo">
+            {livros.length} {livros.length === 1 ? "obra" : "obras"}
+          </span>
+        </div>
 
-          <tbody>
-            {livrosFiltrados.length === 0 ? (
+        <div className="acervo-lista">
+          <table className="tabela-acervo">
+            <thead>
               <tr>
-                <td colSpan={13}>
-                  {pesquisa.trim()
-                    ? "Nenhum livro encontrado."
-                    : "Nenhum livro cadastrado."}
-                </td>
+                <th>Obra</th>
+                <th>Detalhes</th>
+                <th>Estoque</th>
+                <th>Situação</th>
+                <th>Com quem está</th>
+                <th>Ações</th>
               </tr>
-            ) : (
-              livrosFiltrados.map((livro) => (
-                <LinhaLivro
-                  key={livro.codigo}
-                  livro={livro}
-                  abrirEdicao={abrirEdicao}
-                  solicitarExclusao={
-                    solicitarExclusao
-                  }
-                />
-              ))
-            )}
-          </tbody>
-        </table>
+            </thead>
+
+            <tbody>
+              {livrosFiltrados.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="acervo-vazio">
+                    {pesquisa.trim()
+                      ? "Nenhum livro encontrado para esta pesquisa."
+                      : "Nenhum livro cadastrado."}
+                  </td>
+                </tr>
+              ) : (
+                livrosFiltrados.map((livro) => (
+                  <LinhaLivro
+                    key={livro.codigo}
+                    livro={livro}
+                    abrirEdicao={abrirEdicao}
+                    solicitarExclusao={
+                      solicitarExclusao
+                    }
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {livroParaExcluir && (
@@ -1313,19 +1329,46 @@ function LinhaLivro({
   }, [livro.codigo, livro.quantidade_emprestada]);
 
   return (
-    <tr>
-      <td>{livro.codigo}</td>
-      <td>{livro.codigo_barras || "—"}</td>
-      <td>{livro.titulo}</td>
-      <td>{livro.autor}</td>
-      <td>{livro.espirito || "—"}</td>
-      <td>{livro.medium || "—"}</td>
-      <td>{livro.editora || "—"}</td>
-      <td>{livro.quantidade_total}</td>
-      <td>{livro.quantidade_disponivel}</td>
-      <td>{livro.quantidade_emprestada}</td>
+    <tr className="acervo-linha">
+      <td className="acervo-obra">
+        <strong className="acervo-titulo">{livro.titulo}</strong>
+        <span className="acervo-autor">{livro.autor}</span>
+        <div className="acervo-identificadores">
+          <span>Cód. {livro.codigo}</span>
+          {livro.codigo_barras && (
+            <span>Barras {livro.codigo_barras}</span>
+          )}
+        </div>
+      </td>
 
-      <td>
+      <td className="acervo-detalhes">
+        {livro.espirito && (
+          <span><strong>Espírito:</strong> {livro.espirito}</span>
+        )}
+        {livro.medium && (
+          <span><strong>Médium:</strong> {livro.medium}</span>
+        )}
+        {livro.editora && (
+          <span><strong>Editora:</strong> {livro.editora}</span>
+        )}
+        {!livro.espirito && !livro.medium && !livro.editora && (
+          <span className="acervo-sem-detalhes">Sem detalhes adicionais</span>
+        )}
+      </td>
+
+      <td className="acervo-estoque">
+        <strong>
+          {livro.quantidade_disponivel} de {livro.quantidade_total}
+        </strong>
+        <span>disponíveis</span>
+        {livro.quantidade_emprestada > 0 && (
+          <small>
+            {livro.quantidade_emprestada} {livro.quantidade_emprestada === 1 ? "emprestado" : "emprestados"}
+          </small>
+        )}
+      </td>
+
+      <td className="acervo-situacao">
         <span
           className={
             livro.quantidade_disponivel > 0
@@ -1339,20 +1382,14 @@ function LinhaLivro({
         </span>
       </td>
 
-      <td>
+      <td className="acervo-leitores">
         {livro.quantidade_emprestada === 0
-          ? "—"
+          ? <span className="acervo-sem-emprestimo">—</span>
           : emprestadoPara || "Carregando..."}
       </td>
 
       <td>
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            flexWrap: "wrap",
-          }}
-        >
+        <div className="acervo-acoes">
           <button
             className="botao-editar"
             onClick={() => abrirEdicao(livro)}
@@ -1361,7 +1398,7 @@ function LinhaLivro({
           </button>
 
           <button
-            className="botao-devolver"
+            className="botao-devolver acervo-excluir"
             onClick={() => solicitarExclusao(livro)}
           >
             Excluir
