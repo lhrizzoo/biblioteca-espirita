@@ -7,9 +7,17 @@ import { obterBanco } from "../database/database";
 
 type LivroExportacao = {
   codigo: string;
+  codigo_barras: string | null;
   titulo: string;
   autor: string;
-  disponivel: number;
+  espirito: string;
+  medium: string;
+  editora: string;
+  observacao: string;
+  quantidade_total: number;
+  quantidade_emprestada: number;
+  quantidade_disponivel: number;
+  ativo: number;
 };
 
 type PessoaExportacao = {
@@ -221,9 +229,31 @@ function Backup() {
       const db = await obterBanco();
 
       const livros = await db.select<LivroExportacao[]>(`
-        SELECT codigo, titulo, autor, disponivel
-        FROM livros
-        ORDER BY titulo
+        SELECT
+          l.codigo,
+          l.codigo_barras,
+          l.titulo,
+          l.autor,
+          l.espirito,
+          l.medium,
+          l.editora,
+          l.observacao,
+          l.quantidade_total,
+          CAST((
+            SELECT COUNT(*)
+            FROM emprestimos e
+            WHERE e.livro_codigo = l.codigo
+              AND e.data_devolucao IS NULL
+          ) AS INTEGER) AS quantidade_emprestada,
+          MAX(0, l.quantidade_total - (
+            SELECT COUNT(*)
+            FROM emprestimos e
+            WHERE e.livro_codigo = l.codigo
+              AND e.data_devolucao IS NULL
+          )) AS quantidade_disponivel,
+          l.ativo
+        FROM livros l
+        ORDER BY l.titulo
       `);
 
       const pessoas = await db.select<PessoaExportacao[]>(`
@@ -260,14 +290,37 @@ function Backup() {
       const dataArquivo = criarDataArquivo();
 
       const csvLivros = montarCSV(
-        ["codigo", "titulo", "autor", "situacao"],
+        [
+          "codigo",
+          "codigo_barras",
+          "titulo",
+          "autor",
+          "espirito",
+          "medium",
+          "editora",
+          "observacao",
+          "quantidade_total",
+          "quantidade_disponivel",
+          "quantidade_emprestada",
+          "situacao",
+        ],
         livros.map((livro) => [
           livro.codigo,
+          livro.codigo_barras ?? "",
           livro.titulo,
           livro.autor,
-          livro.disponivel === 1
-            ? "Disponível"
-            : "Emprestado",
+          livro.espirito,
+          livro.medium,
+          livro.editora,
+          livro.observacao,
+          livro.quantidade_total,
+          livro.quantidade_disponivel,
+          livro.quantidade_emprestada,
+          livro.ativo === 0
+            ? "Arquivado"
+            : livro.quantidade_disponivel > 0
+              ? "Disponível"
+              : "Todos emprestados",
         ])
       );
 
